@@ -61,6 +61,14 @@ export function parseRegistration(value) {
   return { name, email, password: value.password, organizationName, organizationType: value.organizationType, acceptedTermsVersion: TERMS_VERSION };
 }
 
+export function parseWalletBind(value) {
+  if (!isPlainObject(value)) return null;
+  if (!hasExactlyKeys(value, ["signature", "walletAddress"])) return null;
+  if (typeof value.signature !== "string" || !/^0x[0-9a-fA-F]{130}$/.test(value.signature)) return null;
+  if (typeof value.walletAddress !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(value.walletAddress)) return null;
+  return { signature: value.signature, walletAddress: value.walletAddress };
+}
+
 export function parseFundingActivation(value) {
   if (!isPlainObject(value)) return null;
   if (!hasExactlyKeys(value, ["signature", "walletAddress"])) return null;

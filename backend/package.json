@@ -11,6 +11,7 @@
     "test:native": "node scripts/verify-native.js",
     "doctor": "node scripts/doctor.js",
     "db:migrate": "node scripts/migrate.js",
+    "db:supabase:harden": "node scripts/supabase-harden.js",
     "admin:provision": "node scripts/provision-admin.js",
     "ocr:setup": "node scripts/setup-ocr.js",
     "ocr:smoke": "node scripts/ocr-smoke.js",

@@ -1,5 +1,5 @@
 export type TypedData = {
-  domain: { chainId: number; verifyingContract: string; name: string; version: string };
+  domain: { chainId?: number; verifyingContract?: string; name: string; version: string };
   types: Record<string, Array<{ name: string; type: string }>>;
   primaryType: string;
   message: Record<string, unknown>;
@@ -88,7 +88,7 @@ export async function signTypedData(address: string, typedData: TypedData) {
   } catch {
     throw Object.assign(new Error("wallet_network_unknown"), { code: "wallet_network_unknown" });
   }
-  if (chainId !== BigInt(typedData.domain.chainId)) {
+  if (typedData.domain.chainId !== undefined && chainId !== BigInt(typedData.domain.chainId)) {
     throw Object.assign(new Error("wallet_wrong_network"), { code: "wallet_wrong_network" });
   }
   const metamaskTypedData: TypedData = {

@@ -283,6 +283,7 @@ async function startTestApi() {
   const fundingService = createFundingService({
     repository: fundingRepository,
     campaignRepository,
+    walletLookup: (userId) => authRepository.getWalletAddress(userId),
     // The browser E2E signs the funding agreement with the registered funder
     // test wallet; the chain submission itself is covered by the deployed
     // contract tests, so the registry call is simulated here.
@@ -304,7 +305,9 @@ async function startTestApi() {
     testWalletSigner: async ({ actor, address, typedData }) => {
       const wallet = verifierWalletsByUserId.get(actor.id);
       if (!wallet || wallet.address.toLowerCase() !== address.toLowerCase()) throw Object.assign(new Error("Unknown browser-test wallet"), { code: "FORBIDDEN" });
-      return wallet.signTypedData(typedData.domain, typedData.types, typedData.message);
+      // Wallets sign against the domain without the EIP712Domain type entry.
+      const { EIP712Domain, ...signTypes } = typedData.types;
+      return wallet.signTypedData(typedData.domain, signTypes, typedData.message);
     },
     objectStorage: storage,
     webOrigin,
@@ -406,7 +409,7 @@ async function startTestApi() {
   console.log(`Browser-test API ready on ${host}:${port}`);
 }
 
-startTestApi().catch(() => {
-  console.error("Browser-test API failed to start.");
+startTestApi().catch((error) => {
+  console.error("Browser-test API failed to start:", error);
   process.exitCode = 1;
 });

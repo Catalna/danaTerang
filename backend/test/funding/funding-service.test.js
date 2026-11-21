@@ -34,6 +34,9 @@ function createFakeRepositories() {
   const state = { funding: null };
   return {
     get funding() { return state.funding; },
+    async getWalletAddress(userId) {
+      return userId === FUNDER_ID ? FUNDER_WALLET_ADDRESS : null;
+    },
     async getFundingSource(campaignId) {
       if (campaignId !== CAMPAIGN_ID) throw Object.assign(new Error("FUNDING_SOURCE_NOT_FOUND"), { code: "FUNDING_SOURCE_NOT_FOUND" });
       return sourceFixture();
@@ -61,6 +64,7 @@ function createService({ repository = createFakeRepositories(), contract = creat
   return createFundingService({
     repository,
     campaignRepository: { async activateCampaign({ campaignId }) { return { id: campaignId, status: "ACTIVE" }; } },
+    walletLookup: (userId) => repository.getWalletAddress(userId),
     contract,
     chainId: 11155111,
     contractAddress: `0x${"c".repeat(40)}`,
@@ -71,7 +75,7 @@ function createService({ repository = createFakeRepositories(), contract = creat
 const FUNDER_ACTOR = { id: FUNDER_ID, role: "FUNDER" };
 
 async function signedActivation(service) {
-  const prepare = await service.prepareFunding({ actor: FUNDER_ACTOR, campaignId: CAMPAIGN_ID, walletAddress: FUNDER_WALLET_ADDRESS });
+  const prepare = await service.prepareFunding({ actor: FUNDER_ACTOR, campaignId: CAMPAIGN_ID });
   const { EIP712Domain, ...signTypes } = prepare.typedData.types;
   const signature = await funderWallet.signTypedData(prepare.typedData.domain, signTypes, prepare.typedData.message);
   return service.activateWithSignature({
@@ -84,12 +88,12 @@ async function signedActivation(service) {
 
 test("prepare builds a stable content commitment and a readable typed message", async () => {
   const service = createService();
-  const prepare = await service.prepareFunding({ actor: FUNDER_ACTOR, campaignId: CAMPAIGN_ID, walletAddress: FUNDER_WALLET_ADDRESS });
+  const prepare = await service.prepareFunding({ actor: FUNDER_ACTOR, campaignId: CAMPAIGN_ID });
   assert.match(prepare.contentCommitment, /^0x[0-9a-f]{64}$/);
   assert.equal(prepare.typedData.domain.chainId, 11155111);
   assert.equal(prepare.typedData.domain.name, "DanaTerang Campaign Funding");
   assert.equal(prepare.typedData.message.funder, FUNDER_WALLET_ADDRESS);
-  const again = await service.prepareFunding({ actor: FUNDER_ACTOR, campaignId: CAMPAIGN_ID, walletAddress: FUNDER_WALLET_ADDRESS });
+  const again = await service.prepareFunding({ actor: FUNDER_ACTOR, campaignId: CAMPAIGN_ID });
   assert.equal(again.contentCommitment, prepare.contentCommitment);
   // The commitment covers the outline only; the milestone list is not part of it.
   assert.equal(prepare.record.totalBudget, "100000000.00");
@@ -116,7 +120,7 @@ test("a signature by a different wallet is rejected before any chain call", asyn
     contract: { async fundCampaign() { chainCalls += 1; return { hash: TX_HASH, async wait() { return { status: 1, blockNumber: 1 }; } }; } },
   });
   const impostor = new Wallet(`0x${"8".repeat(64)}`);
-  const prepare = await service.prepareFunding({ actor: FUNDER_ACTOR, campaignId: CAMPAIGN_ID, walletAddress: FUNDER_WALLET_ADDRESS });
+  const prepare = await service.prepareFunding({ actor: FUNDER_ACTOR, campaignId: CAMPAIGN_ID });
   const { EIP712Domain, ...signTypes } = prepare.typedData.types;
   const signature = await impostor.signTypedData(prepare.typedData.domain, signTypes, prepare.typedData.message);
   await assert.rejects(

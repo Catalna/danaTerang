@@ -57,8 +57,9 @@ export function buildContentCommitment(source) {
   return { record, contentCommitment: `0x${hashCanonicalJson(record)}` };
 }
 
-export function createFundingService({ repository, campaignRepository, contract = null, chainId = null, contractAddress = null, now: clock = () => new Date() } = {}) {
+export function createFundingService({ repository, campaignRepository, walletLookup, contract = null, chainId = null, contractAddress = null, now: clock = () => new Date() } = {}) {
   if (!repository || !campaignRepository) throw new TypeError("Funding service requires repositories");
+  if (typeof walletLookup !== "function") throw new TypeError("Funding service requires a wallet lookup");
 
   function typedDataFor(message) {
     if (!chainId || !contractAddress) throw fundingError("FUNDING_DISABLED");
@@ -89,9 +90,15 @@ export function createFundingService({ repository, campaignRepository, contract 
     return source;
   }
 
-  async function prepareFunding({ actor, campaignId, walletAddress } = {}) {
-    if (!WALLET_ADDRESS.test(walletAddress ?? "")) throw fundingError("INVALID_FUNDING_WALLET");
+  async function requireBoundWallet(actor) {
+    const bound = await walletLookup(actor.id);
+    if (!bound || !WALLET_ADDRESS.test(bound)) throw fundingError("FUNDING_WALLET_NOT_BOUND");
+    return bound;
+  }
+
+  async function prepareFunding({ actor, campaignId } = {}) {
     const source = await loadSourceForFunder(actor, campaignId);
+    const walletAddress = await requireBoundWallet(actor);
     const { record, contentCommitment } = buildContentCommitment(source);
     const message = {
       campaignId: campaignIdOnChain(campaignId),
@@ -101,6 +108,7 @@ export function createFundingService({ repository, campaignRepository, contract 
     };
     return {
       contentCommitment,
+      walletAddress,
       typedData: typedDataFor(message),
       record,
     };
@@ -108,14 +116,17 @@ export function createFundingService({ repository, campaignRepository, contract 
 
   async function activateWithSignature({ actor, campaignId, signature, walletAddress, now = clock() } = {}) {
     if (!EIP712_SIGNATURE.test(signature ?? "")) throw fundingError("INVALID_FUNDING_SIGNATURE");
-    if (!WALLET_ADDRESS.test(walletAddress ?? "")) throw fundingError("INVALID_FUNDING_WALLET");
     if (!contract) throw fundingError("FUNDING_DISABLED");
+    const boundWallet = await requireBoundWallet(actor);
+    if (walletAddress && walletAddress.toLowerCase() !== boundWallet.toLowerCase()) {
+      throw fundingError("FUNDING_WALLET_MISMATCH");
+    }
     const source = await loadSourceForFunder(actor, campaignId);
     const { contentCommitment } = buildContentCommitment(source);
     const message = {
       campaignId: campaignIdOnChain(campaignId),
       contentCommitment,
-      funder: walletAddress,
+      funder: boundWallet,
       version: 1,
     };
     const typedData = typedDataFor(message);
@@ -134,7 +145,7 @@ export function createFundingService({ repository, campaignRepository, contract 
     if (!existing) {
       let transaction;
       try {
-        transaction = await contract.fundCampaign(message.campaignId, contentCommitment, walletAddress, signature);
+        transaction = await contract.fundCampaign(message.campaignId, contentCommitment, boundWallet, signature);
       } catch (error) {
         if (String(error?.message ?? "").includes("EXPECT_CAMPAIGN_ALREADY_FUNDED")) {
           throw fundingError("FUNDING_ALREADY_RECORDED");
@@ -159,7 +170,7 @@ export function createFundingService({ repository, campaignRepository, contract 
         campaignId,
         contentCommitment,
         funderUserId: actor.id,
-        funderWallet: walletAddress.toLowerCase(),
+        funderWallet: boundWallet.toLowerCase(),
         registryAddress: contractAddress,
         eip712Signature: signature,
         transactionHash,

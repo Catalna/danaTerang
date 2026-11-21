@@ -2,6 +2,8 @@
 
 PostgreSQL schema migrations live in `database/migrations/`. Each numbered `.sql` file applies an up migration; the matching `.down.sql` file reverses it.
 
+**Hosting on Supabase / Vercel:** follow [the Supabase migration guide](supabase/README.md). It covers the session-vs-transaction pooler endpoints, TLS, the mandatory `public`-schema grant hardening, and the remaining Vercel blockers (storage and background workers).
+
 ## Native Windows Development (No Docker)
 
 **Setup otomatis:** dari root, jalankan `npm install`, `npm run setup:local`, lalu `npm run dev`. PostgreSQL native disediakan sebagai dependensi development, memakai port `55432` dan folder `.local/postgres`. Credential acak/Admin lokal tersimpan di `.local/development.json` dan `backend/.env` (keduanya diabaikan Git). Semua migrasi diterapkan tanpa menghapus data. File `.env` database lain tidak ditimpa. Untuk menjalankan database saja gunakan `npm run db:start:local`, dan hentikan dengan `npm run db:stop:local`.

@@ -3,6 +3,7 @@ import rateLimit from "express-rate-limit";
 
 import { HttpError } from "../auth/errors.js";
 import { SESSION_COOKIE_NAME, SESSION_LIFETIME_SECONDS } from "../auth/sessionConstants.js";
+import { parseWalletBind } from "../auth/validation.js";
 import { createSessionMiddleware } from "../middleware/session.js";
 
 const RELAXED_AUTH_LIMIT = 1000;
@@ -86,6 +87,31 @@ export function createAuthRouter({ authService, webOrigin, nodeEnv = process.env
   router.get("/me", requireSession, (request, response) => {
     const { id, name, email, role, organizationId, organization } = request.currentUser;
     return response.status(200).json({ user: { id, name, email, role, organizationId, organization } });
+  });
+
+  router.get("/wallet", requireSession, async (request, response, next) => {
+    try {
+      return response.status(200).json(await authService.getWallet({ actor: request.currentUser }));
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post("/wallet", originCheck, requireSession, async (request, response, next) => {
+    response.set("Cache-Control", "private, no-store");
+    const input = parseWalletBind(request.body);
+    if (!input) return response.status(400).json({ error: "invalid_request" });
+    try {
+      const result = await authService.bindWallet({
+        actor: request.currentUser,
+        walletAddress: input.walletAddress,
+        signature: input.signature,
+      });
+      return response.status(200).json(result);
+    } catch (error) {
+      if (error instanceof HttpError) return response.status(error.status).json({ error: error.message });
+      return next(error);
+    }
   });
 
   router.post("/logout", originCheck, requireSession, async (request, response, next) => {

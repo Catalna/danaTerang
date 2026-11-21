@@ -58,6 +58,44 @@ export function createAuthRepository(pool) {
       return result.rows.map(publicUser);
     },
 
+    async bindFunderWallet({ userId, walletAddress, now = new Date() }) {
+      return inTransaction(pool, async (client) => {
+        const target = await client.query(
+          "SELECT id, role, status FROM users WHERE id = $1 LIMIT 1",
+          [userId],
+        );
+        if (target.rowCount === 0) throw Object.assign(new Error("User not found"), { code: "USER_NOT_FOUND" });
+        if (target.rows[0].role !== "FUNDER" || target.rows[0].status !== "ACTIVE") {
+          throw Object.assign(new Error("Only an active Funder can bind a wallet"), { code: "FUNDER_WALLET_FORBIDDEN" });
+        }
+        try {
+          const updated = await client.query(
+            `UPDATE users SET wallet_address = $2, updated_at = $3
+             WHERE id = $1
+             RETURNING id, wallet_address`,
+            [userId, walletAddress, now],
+          );
+          await client.query(
+            `INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details, created_at)
+             VALUES ($1, $2, 'FUNDER_WALLET_BOUND', 'user', $3, $4, $5)`,
+            [randomUUID(), userId, userId, JSON.stringify({ wallet: walletAddress }), now],
+          );
+          return { userId, walletAddress: updated.rows[0].wallet_address };
+        } catch (error) {
+          if (error?.code === "23505") {
+            throw Object.assign(new Error("Wallet is already bound to another account"), { code: "WALLET_ALREADY_BOUND" });
+          }
+          throw error;
+        }
+      });
+    },
+
+    async getWalletAddress(userId) {
+      const result = await pool.query("SELECT wallet_address FROM users WHERE id = $1", [userId]);
+      if (result.rowCount === 0) throw Object.assign(new Error("User not found"), { code: "USER_NOT_FOUND" });
+      return result.rows[0].wallet_address;
+    },
+
     async listOrganizationsForAdmin() {
       const result = await pool.query(
         `SELECT o.id, o.name, o.type, o.verified, o.verified_at, o.verified_by,

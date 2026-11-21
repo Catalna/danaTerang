@@ -206,9 +206,11 @@ export default function CampaignDetailPage() {
     setActionError("");
     setPending(true);
     try {
-      const address = await requestVerifierAddress();
+      const wallet = await requestJson<{ walletAddress: string | null }>("/api/auth/wallet");
+      if (!wallet.walletAddress) throw Object.assign(new Error("funding_wallet_not_bound"), { code: "funding_wallet_not_bound" });
+      const address = wallet.walletAddress;
       const prepare = await requestJson<{ typedData: { domain: unknown; types: Record<string, unknown[]>; primaryType: string; message: unknown } }>(
-        `/api/campaigns/${campaignId}/activate/prepare?wallet=${encodeURIComponent(address)}`,
+        `/api/campaigns/${campaignId}/activate/prepare`,
       );
       const signature = await signTypedData(address, prepare.typedData as Parameters<typeof signTypedData>[1]);
       await requestJson(`/api/campaigns/${campaignId}/activate`, {
@@ -218,6 +220,10 @@ export default function CampaignDetailPage() {
     } catch (cause) {
       if (cause instanceof ApiError && cause.status === 503 && cause.code === "funding_disabled") {
         setActionError("Pencatatan pendanaan di blockchain belum dikonfigurasi di server. Hubungi Admin.");
+      } else if (cause instanceof ApiError && cause.code === "funding_wallet_not_bound") {
+        setActionError("Hubungkan wallet Anda lewat tombol di kanan atas terlebih dahulu.");
+      } else if (cause instanceof ApiError && cause.code === "funding_wallet_mismatch") {
+        setActionError("Wallet yang terhubung berbeda dari wallet yang terikat pada akun ini.");
       } else if (cause instanceof ApiError && cause.code === "wallet_not_available") {
         setActionError("MetaMask tidak ditemukan. Pasang MetaMask lalu coba lagi.");
       } else if (cause instanceof Error && cause.message === "unsupported_wallet_method") {

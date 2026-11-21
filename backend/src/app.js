@@ -129,6 +129,7 @@ export function createApp({ authRepository, campaignRepository, evidenceReposito
   });
 
   app.use((error, _request, response, next) => {
+    console.error("Unhandled API error:", error?.code ?? "", error?.message ?? error);
     if (response.headersSent) return next(error);
     const status = error.status === 413 ? 413 : error.status === 400 ? 400 : 500;
     const code = status === 413 ? "request_too_large" : status === 400 ? "invalid_json" : "internal_error";

@@ -25,6 +25,7 @@ import { requestJson } from "../lib/api";
 import { useCurrentUser, type UserSummary } from "../lib/useCurrentUser";
 import WorkspaceSearch from "./WorkspaceSearch";
 import WorkspaceAlerts from "./WorkspaceAlerts";
+import FunderWalletButton from "./FunderWalletButton";
 import horizontalLogo from "../public/asset/lockup_horizontal.png";
 
 const WorkspaceUserContext = createContext<UserSummary | null>(null);
@@ -361,6 +362,7 @@ export default function AuthenticatedLayout({
             <div className="top-header-right">
               <WorkspaceSearch user={user} />
               <WorkspaceAlerts user={user} />
+              {isFunder && <FunderWalletButton />}
               <div className="top-user-avatar-box" title={user.name}>
                 {user.name.slice(0, 2).toUpperCase()}
               </div>

@@ -1,3 +1,4 @@
+import { verifyTypedData } from "ethers";
 import { HttpError } from "./errors.js";
 import { hashPassword, verifyPassword } from "./passwords.js";
 import { createSessionToken, hashSessionToken } from "./sessionTokens.js";
@@ -16,6 +17,15 @@ function clientUser(user) {
     organization: user.organization ?? null,
   };
 }
+
+const WALLET_BINDING_DOMAIN = { name: "DanaTerang Wallet Binding", version: "1" };
+const WALLET_BINDING_TYPES = {
+  WalletBinding: [
+    { name: "wallet", type: "address" },
+    { name: "account", type: "string" },
+    { name: "action", type: "string" },
+  ],
+};
 
 export function createAuthService({ authRepository, now = () => new Date() }) {
   if (!authRepository) throw new TypeError("An auth repository is required");
@@ -42,6 +52,44 @@ export function createAuthService({ authRepository, now = () => new Date() }) {
         throw error;
       }
       return { user: clientUser(account.user), token };
+    },
+
+    async prepareWalletBinding({ actor, walletAddress }) {
+      if (actor.role !== "FUNDER") throw new HttpError(403, "forbidden");
+      return {
+        domain: { ...WALLET_BINDING_DOMAIN },
+        types: {
+          EIP712Domain: [
+            { name: "name", type: "string" },
+            { name: "version", type: "string" },
+          ],
+          WalletBinding: WALLET_BINDING_TYPES.WalletBinding,
+        },
+        primaryType: "WalletBinding",
+        message: { wallet: walletAddress, account: actor.id, action: "bind" },
+      };
+    },
+
+    async bindWallet({ actor, walletAddress, signature }) {
+      if (actor.role !== "FUNDER") throw new HttpError(403, "forbidden");
+      const message = { wallet: walletAddress, account: actor.id, action: "bind" };
+      let signer;
+      try {
+        signer = verifyTypedData(WALLET_BINDING_DOMAIN, WALLET_BINDING_TYPES, message, signature);
+      } catch {
+        throw new HttpError(400, "invalid_wallet_signature");
+      }
+      if (signer.toLowerCase() !== walletAddress.toLowerCase()) throw new HttpError(400, "invalid_wallet_signature");
+      const { walletAddress: bound } = await authRepository.bindFunderWallet({
+        userId: actor.id,
+        walletAddress: walletAddress.toLowerCase(),
+      });
+      return { walletAddress: bound };
+    },
+
+    async getWallet({ actor }) {
+      const walletAddress = await authRepository.getWalletAddress(actor.id);
+      return { walletAddress: walletAddress ?? null };
     },
 
     async login(input) {

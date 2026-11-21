@@ -104,6 +104,7 @@ async function startServer() {
       ? createFundingService({
         repository: fundingRepository,
         campaignRepository,
+        walletLookup: (userId) => authRepository.getWalletAddress(userId),
         contract: campaignRegistryChain.contract,
         chainId: campaignRegistryConfig.chainId,
         contractAddress: campaignRegistryChain.contractAddress,

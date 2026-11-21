@@ -13,6 +13,8 @@ function sendFundingError(error, response, next) {
     INVALID_FUNDING_SIGNATURE: [400, "invalid_funding_signature"],
     FUNDING_DISABLED: [503, "funding_disabled"],
     FUNDING_ALREADY_RECORDED: [409, "funding_already_recorded"],
+    FUNDING_WALLET_NOT_BOUND: [409, "funding_wallet_not_bound"],
+    FUNDING_WALLET_MISMATCH: [409, "funding_wallet_mismatch"],
     FUNDING_ANCHOR_FAILED: [502, "funding_anchor_failed"],
     FUNDING_ANCHOR_PENDING: [202, "funding_anchor_pending"],
     // Activation-side errors bubble from the campaign repository.
@@ -44,11 +46,9 @@ export function createFundingRouter({ fundingService, authService, webOrigin }) 
     async (request, response, next) => {
       try {
         if (!isUserId(request.params.campaignId)) return response.status(400).json({ error: "invalid_request" });
-        const walletAddress = request.query.wallet;
         const result = await fundingService.prepareFunding({
           actor: request.currentUser,
           campaignId: request.params.campaignId,
-          walletAddress: typeof walletAddress === "string" ? walletAddress : "",
         });
         return response.status(200).json(result);
       } catch (error) {
