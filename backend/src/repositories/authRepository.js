@@ -90,6 +90,32 @@ export function createAuthRepository(pool) {
       });
     },
 
+    async unbindFunderWallet({ userId, now = new Date() }) {
+      return inTransaction(pool, async (client) => {
+        const target = await client.query(
+          "SELECT id, role, status, wallet_address FROM users WHERE id = $1 LIMIT 1",
+          [userId],
+        );
+        if (target.rowCount === 0) throw Object.assign(new Error("User not found"), { code: "USER_NOT_FOUND" });
+        if (target.rows[0].role !== "FUNDER" || target.rows[0].status !== "ACTIVE") {
+          throw Object.assign(new Error("Only an active Funder can release a wallet"), { code: "FUNDER_WALLET_FORBIDDEN" });
+        }
+        if (!target.rows[0].wallet_address) {
+          throw Object.assign(new Error("No wallet is bound to this account"), { code: "WALLET_NOT_BOUND" });
+        }
+        await client.query(
+          "UPDATE users SET wallet_address = NULL, updated_at = $2 WHERE id = $1",
+          [userId, now],
+        );
+        await client.query(
+          `INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details, created_at)
+           VALUES ($1, $2, 'FUNDER_WALLET_UNBOUND', 'user', $3, $4, $5)`,
+          [randomUUID(), userId, userId, JSON.stringify({ wallet: target.rows[0].wallet_address }), now],
+        );
+        return { userId, walletAddress: null };
+      });
+    },
+
     async getWalletAddress(userId) {
       const result = await pool.query("SELECT wallet_address FROM users WHERE id = $1", [userId]);
       if (result.rowCount === 0) throw Object.assign(new Error("User not found"), { code: "USER_NOT_FOUND" });

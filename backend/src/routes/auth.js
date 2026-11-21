@@ -114,6 +114,18 @@ export function createAuthRouter({ authService, webOrigin, nodeEnv = process.env
     }
   });
 
+  router.delete("/wallet", originCheck, requireSession, async (request, response, next) => {
+    try {
+      const result = await authService.unbindWallet({ actor: request.currentUser });
+      return response.status(200).json({ unbound: true, walletAddress: result.walletAddress });
+    } catch (error) {
+      if (error instanceof HttpError) return response.status(error.status).json({ error: error.code });
+      if (error?.code === "FUNDER_WALLET_FORBIDDEN") return response.status(403).json({ error: "forbidden" });
+      if (error?.code === "WALLET_NOT_BOUND") return response.status(409).json({ error: "wallet_not_bound" });
+      return next(error);
+    }
+  });
+
   router.post("/logout", originCheck, requireSession, async (request, response, next) => {
     try {
       await authService.logout(request.cookies?.[SESSION_COOKIE_NAME]);

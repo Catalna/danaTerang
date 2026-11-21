@@ -92,6 +92,11 @@ export function createAuthService({ authRepository, now = () => new Date() }) {
       return { walletAddress: walletAddress ?? null };
     },
 
+    async unbindWallet({ actor }) {
+      if (actor.role !== "FUNDER") throw new HttpError(403, "forbidden");
+      return authRepository.unbindFunderWallet({ userId: actor.id });
+    },
+
     async login(input) {
       const data = parseLogin(input);
       if (!data) throw new HttpError(400, "invalid_request");

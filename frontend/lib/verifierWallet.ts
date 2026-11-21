@@ -78,6 +78,18 @@ export async function requestVerifierAddress() {
   return result[0];
 }
 
+/** EIP712Domain must describe only the fields actually present in the domain.
+ *  Review/funding domains include chainId + verifyingContract; the Funder
+ *  wallet-binding domain intentionally has only name + version. */
+function domainTypes(domain: TypedData["domain"]): Array<{ name: string; type: string }> {
+  const fields: Array<{ name: string; type: string }> = [];
+  if (typeof domain.name === "string") fields.push({ name: "name", type: "string" });
+  if (typeof domain.version === "string") fields.push({ name: "version", type: "string" });
+  if (domain.chainId !== undefined) fields.push({ name: "chainId", type: "uint256" });
+  if (domain.verifyingContract !== undefined) fields.push({ name: "verifyingContract", type: "address" });
+  return fields;
+}
+
 export async function signTypedData(address: string, typedData: TypedData) {
   await ensureSepoliaNetwork();
   const provider = ethereumProvider();
@@ -95,12 +107,7 @@ export async function signTypedData(address: string, typedData: TypedData) {
     ...typedData,
     types: {
       ...typedData.types,
-      EIP712Domain: [
-        { name: "name", type: "string" },
-        { name: "version", type: "string" },
-        { name: "chainId", type: "uint256" },
-        { name: "verifyingContract", type: "address" },
-      ],
+      EIP712Domain: domainTypes(typedData.domain),
     },
   };
   const signature = await provider.request({

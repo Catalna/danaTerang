@@ -13,6 +13,7 @@ import {
   ScrollText,
   Building2,
   Users,
+  UserRound,
   BadgeCheck,
   Globe2,
   Anchor,
@@ -380,7 +381,7 @@ export default function AuthenticatedLayout({
           <header className="workspace-top-header" aria-label="Identitas pengguna">
             <div className="top-header-user">
               <div className="top-user-avatar" aria-hidden="true">
-                {user.name.slice(0, 2).toUpperCase()}
+                <UserRound size={20} />
               </div>
               <div className="top-user-meta">
                 <span className="top-user-org">{orgName}</span>
@@ -402,9 +403,6 @@ export default function AuthenticatedLayout({
               <WorkspaceSearch user={user} />
               <WorkspaceAlerts user={user} />
               {isFunder && <FunderWalletButton />}
-              <div className="top-user-avatar-box" title={user.name}>
-                {user.name.slice(0, 2).toUpperCase()}
-              </div>
             </div>
           </header>
 
