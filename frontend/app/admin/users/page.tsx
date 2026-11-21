@@ -135,15 +135,17 @@ export default function AdminUsersPage() {
                         ? <>{user.organization.name} · {user.organization.type}{" "}<span className={user.organization.verified ? "status-pill status-pill--ok" : "status-pill status-pill--warning"}>{user.organization.verified ? "terverifikasi" : "belum terverifikasi"}</span></>
                         : "Tanpa organisasi"}</td>
                       <td>
-                        {user.role === "ADMIN" ? <span className="status-pill status-pill--pending">ADMIN</span> : (
+                        {user.role === "ADMIN" ? <span className="status-pill status-pill--pending">ADMIN</span> : !user.organizationId ? (
+                          <span className="status-pill status-pill--pending">FUNDER · Perorangan</span>
+                        ) : (
                           <label className="visually-hidden" htmlFor={`role-${user.id}`}>Role akun {user.name}</label>
                         )}
-                        {user.role !== "ADMIN" && <select id={`role-${user.id}`} aria-label={`Role akun ${user.name}`} value={selectedRoles[user.id] ?? user.role} onChange={(event) => setSelectedRoles((current) => ({ ...current, [user.id]: event.target.value }))}>
+                        {user.role !== "ADMIN" && user.organizationId && <select id={`role-${user.id}`} aria-label={`Role akun ${user.name}`} value={selectedRoles[user.id] ?? user.role} onChange={(event) => setSelectedRoles((current) => ({ ...current, [user.id]: event.target.value }))}>
                           {PILOT_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
                         </select>}
                         {unverifiedFunder && <p className="field-hint">Funder dari organisasi yang belum terverifikasi.</p>}
                       </td>
-                      <td>{user.role === "ADMIN" ? <span className="table-meta">Role sistem</span> : <button className="action-button action-button--secondary" type="button" disabled={savingUserId === user.id || selectedRoles[user.id] === user.role} aria-busy={savingUserId === user.id} onClick={() => void saveRole(user)}>
+                      <td>{user.role === "ADMIN" ? <span className="table-meta">Role sistem</span> : !user.organizationId ? <span className="table-meta">Akun perorangan</span> : <button className="action-button action-button--secondary" type="button" disabled={savingUserId === user.id || selectedRoles[user.id] === user.role} aria-busy={savingUserId === user.id} onClick={() => void saveRole(user)}>
                         {savingUserId === user.id ? "Menyimpan…" : `Simpan role ${user.name}`}
                       </button>}</td>
                     </tr>

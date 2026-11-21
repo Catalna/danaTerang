@@ -39,6 +39,7 @@ export default function FunderWalletButton() {
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState("");
+  const walletOwnerLabel = user?.role === "ORGANIZER" ? "Organizer" : "Donatur";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,12 +76,12 @@ export default function FunderWalletButton() {
       } else if (cause instanceof Error && cause.message === "4001") {
         setError("Tanda tangan dibatalkan di wallet.");
       } else {
-        setError("Wallet belum dapat dihubungkan. Coba lagi.");
+        setError(`Wallet ${walletOwnerLabel} belum dapat dihubungkan. Coba lagi.`);
       }
     } finally {
       setConnecting(false);
     }
-  }, [load, user]);
+  }, [load, user, walletOwnerLabel]);
 
   if (loading || !user) return null;
 
@@ -94,7 +95,7 @@ export default function FunderWalletButton() {
       ) : (
         <>
           <button className="action-button action-button--secondary funder-wallet-connect" type="button" disabled={connecting} aria-busy={connecting} onClick={() => void connect()}>
-            {connecting ? "Menghubungkan…" : "Hubungkan Wallet"}
+            {connecting ? "Menghubungkan…" : `Hubungkan Wallet ${walletOwnerLabel}`}
           </button>
           {error ? <span className="funder-wallet-error" role="alert">{error}</span> : null}
         </>

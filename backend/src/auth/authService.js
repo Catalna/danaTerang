@@ -40,7 +40,7 @@ export function createAuthService({ authRepository, now = () => new Date() }) {
       const currentTime = now();
       let account;
       try {
-        account = await authRepository.registerOrganizer({
+        account = await authRepository.registerAccount({
           ...data,
           passwordHash,
           sessionTokenHash: tokenHash,
@@ -55,7 +55,7 @@ export function createAuthService({ authRepository, now = () => new Date() }) {
     },
 
     async prepareWalletBinding({ actor, walletAddress }) {
-      if (actor.role !== "FUNDER") throw new HttpError(403, "forbidden");
+      if (actor.role !== "FUNDER" && actor.role !== "ORGANIZER") throw new HttpError(403, "forbidden");
       return {
         domain: { ...WALLET_BINDING_DOMAIN },
         types: {
@@ -71,7 +71,7 @@ export function createAuthService({ authRepository, now = () => new Date() }) {
     },
 
     async bindWallet({ actor, walletAddress, signature }) {
-      if (actor.role !== "FUNDER") throw new HttpError(403, "forbidden");
+      if (actor.role !== "FUNDER" && actor.role !== "ORGANIZER") throw new HttpError(403, "forbidden");
       const message = { wallet: walletAddress, account: actor.id, action: "bind" };
       let signer;
       try {

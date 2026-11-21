@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import request from "supertest";
 import { newDb } from "pg-mem";
+import { Wallet } from "ethers";
 
 import { createApp } from "../../src/app.js";
 import { hashPassword } from "../../src/auth/passwords.js";
@@ -26,6 +27,8 @@ const organizerInput = {
   name: "Ana Winata",
   email: "ana@example.com",
   password: "correct horse battery staple",
+  role: "ORGANIZER",
+  accountType: "ORGANIZATION",
   organizationName: "Komunitas Terang",
   organizationType: "COMMUNITY",
   acceptedTermsVersion: TERMS_VERSION,
@@ -37,7 +40,7 @@ function sessionCookie(response) {
   return cookie.split(";")[0];
 }
 
-test("public registration creates only an Organizer account and a private session cookie", async () => {
+test("public registration creates an Organizer account and a private session cookie", async () => {
   const { app, pool } = await createTestApp();
   try {
     const response = await request(app)
@@ -68,7 +71,54 @@ test("public registration creates only an Organizer account and a private sessio
   }
 });
 
-test("registration rejects client-selected roles and mismatched origins", async () => {
+test("public registration creates Funder accounts for individuals and organizations", async () => {
+  const { app, pool } = await createTestApp();
+  try {
+    const individual = await request(app)
+      .post("/api/auth/register")
+      .set("Origin", WEB_ORIGIN)
+      .send({
+        name: "Dewi Pribadi",
+        email: "dewi@example.com",
+        password: "correct horse battery staple",
+        role: "FUNDER",
+        accountType: "INDIVIDUAL",
+        acceptedTermsVersion: TERMS_VERSION,
+      });
+    assert.equal(individual.status, 201);
+    assert.equal(individual.body.user.role, "FUNDER");
+    assert.equal(individual.body.user.organizationId, null);
+    assert.equal(individual.body.user.organization, null);
+    assert.match(sessionCookie(individual), /^dt_session=/);
+
+    const organization = await request(app)
+      .post("/api/auth/register")
+      .set("Origin", WEB_ORIGIN)
+      .send({
+        name: "Bima Santoso",
+        email: "bima@example.com",
+        password: "correct horse battery staple",
+        role: "FUNDER",
+        accountType: "ORGANIZATION",
+        organizationName: "Yayasan Cahaya Bersama",
+        organizationType: "NGO",
+        acceptedTermsVersion: TERMS_VERSION,
+      });
+    assert.equal(organization.status, 201);
+    assert.equal(organization.body.user.role, "FUNDER");
+    assert.equal(organization.body.user.organization.name, "Yayasan Cahaya Bersama");
+    assert.equal(organization.body.user.organization.type, "NGO");
+    assert.equal(organization.body.user.organization.verified, false);
+
+    const stored = await pool.query("SELECT role, organization_id FROM users WHERE email_normalized = $1", ["dewi@example.com"]);
+    assert.equal(stored.rows[0].role, "FUNDER");
+    assert.equal(stored.rows[0].organization_id, null);
+  } finally {
+    await pool.end();
+  }
+});
+
+test("registration rejects privileged roles, invalid account types, and mismatched origins", async () => {
   const { app, pool } = await createTestApp();
   try {
     const roleInjection = await request(app)
@@ -77,6 +127,25 @@ test("registration rejects client-selected roles and mismatched origins", async 
       .send({ ...organizerInput, role: "ADMIN" });
     assert.equal(roleInjection.status, 400);
     assert.deepEqual(roleInjection.body, { error: "invalid_request" });
+
+    const verifierRegistration = await request(app)
+      .post("/api/auth/register")
+      .set("Origin", WEB_ORIGIN)
+      .send({ ...organizerInput, role: "VERIFIER" });
+    assert.equal(verifierRegistration.status, 400);
+
+    const invalidIndividualOrganizer = await request(app)
+      .post("/api/auth/register")
+      .set("Origin", WEB_ORIGIN)
+      .send({
+        name: "Ana Winata",
+        email: "ana@example.com",
+        password: "correct horse battery staple",
+        role: "ORGANIZER",
+        accountType: "INDIVIDUAL",
+        acceptedTermsVersion: TERMS_VERSION,
+      });
+    assert.equal(invalidIndividualOrganizer.status, 400);
 
     const malformedFields = await request(app)
       .post("/api/auth/register")
@@ -207,6 +276,39 @@ test("only Admin can assign Funder or Verifier roles", async () => {
       .set("Cookie", sessionCookie(adminLogin))
       .send({ role: "ADMIN" });
     assert.equal(makeAnotherAdmin.status, 400);
+  } finally {
+    await pool.end();
+  }
+});
+
+test("an Organizer can bind a wallet for signing final campaign terms", async () => {
+  const { app, pool } = await createTestApp();
+  try {
+    const registration = await request(app)
+      .post("/api/auth/register")
+      .set("Origin", WEB_ORIGIN)
+      .send(organizerInput)
+      .expect(201);
+    const cookie = sessionCookie(registration);
+    const wallet = new Wallet(`0x${"9".repeat(64)}`);
+    const types = {
+      WalletBinding: [
+        { name: "wallet", type: "address" },
+        { name: "account", type: "string" },
+        { name: "action", type: "string" },
+      ],
+    };
+    const message = { wallet: wallet.address, account: registration.body.user.id, action: "bind" };
+    const signature = await wallet.signTypedData({ name: "DanaTerang Wallet Binding", version: "1" }, types, message);
+    const bound = await request(app)
+      .post("/api/auth/wallet")
+      .set("Origin", WEB_ORIGIN)
+      .set("Cookie", cookie)
+      .send({ walletAddress: wallet.address, signature })
+      .expect(200);
+    assert.equal(bound.body.walletAddress, wallet.address.toLowerCase());
+    const stored = await pool.query("SELECT wallet_address FROM users WHERE id = $1", [registration.body.user.id]);
+    assert.equal(stored.rows[0].wallet_address, wallet.address.toLowerCase());
   } finally {
     await pool.end();
   }

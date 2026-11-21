@@ -288,7 +288,7 @@ async function startTestApi() {
     // test wallet; the chain submission itself is covered by the deployed
     // contract tests, so the registry call is simulated here.
     contract: { async fundCampaign() { return { hash: `0x${"cd".repeat(32)}`, async wait() { return { status: 1, blockNumber: 4321 }; } }; } },
-    chainId: 11155111,
+    chainId: TEST_CHAIN_ID,
     contractAddress: `0x${"c".repeat(40)}`,
   });
   const app = createApp({

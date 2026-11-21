@@ -5,6 +5,7 @@ function normalizeEmail(email) {
 }
 
 const ASSIGNABLE_ROLES = new Set(["ORGANIZER", "FUNDER", "VERIFIER", "BENEFICIARY"]);
+const PUBLIC_REGISTRATION_ROLES = new Set(["ORGANIZER", "FUNDER"]);
 
 function publicUser(row) {
   return {
@@ -47,6 +48,71 @@ export function createAuthRepository(pool) {
     throw new TypeError("A PostgreSQL-compatible pool is required");
   }
 
+  async function createRegisteredAccount({
+    role = "ORGANIZER",
+    name,
+    email,
+    passwordHash,
+    organizationName,
+    organizationType,
+    acceptedTermsVersion,
+    sessionTokenHash,
+    sessionExpiresAt,
+    now = new Date(),
+  }) {
+    const userId = randomUUID();
+    const organizationId = typeof organizationName === "string" ? randomUUID() : null;
+    const sessionId = randomUUID();
+    const normalizedEmail = normalizeEmail(email);
+
+    return inTransaction(pool, async (client) => {
+      let organization = null;
+      if (organizationId) {
+        const organizationResult = await client.query(
+          `INSERT INTO organizations (id, name, type, verified, created_at, updated_at)
+           VALUES ($1, $2, $3, FALSE, $4, $4)
+           RETURNING id, name, type, verified`,
+          [organizationId, organizationName.trim(), organizationType.toUpperCase(), now],
+        );
+        organization = organizationResult.rows[0];
+      }
+
+      const userResult = await client.query(
+        `INSERT INTO users (id, organization_id, name, email_normalized, password_hash, role, status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, 'ACTIVE', $7, $7)
+         RETURNING id, name, email_normalized, role, organization_id, status`,
+        [userId, organizationId, name.trim(), normalizedEmail, passwordHash, role, now],
+      );
+
+      await client.query(
+        `INSERT INTO user_sessions (id, user_id, token_hash, expires_at, revoked_at, created_at)
+         VALUES ($1, $2, $3, $4, NULL, $5)`,
+        [sessionId, userId, sessionTokenHash, sessionExpiresAt, now],
+      );
+
+      // The registration service always provides the validated TERMS_VERSION;
+      // direct repository callers (tests, seeding) may omit it.
+      if (typeof acceptedTermsVersion === "string" && acceptedTermsVersion.length > 0) {
+        await client.query(
+          `INSERT INTO terms_acceptances (id, user_id, terms_version, accepted_at)
+           VALUES ($1, $2, $3, $4)`,
+          [randomUUID(), userId, acceptedTermsVersion, now],
+        );
+      }
+
+      const user = userResult.rows[0];
+      return {
+        user: publicUser({
+          ...user,
+          organization_name: organization?.name ?? null,
+          organization_type: organization?.type ?? null,
+          organization_verified: organization?.verified ?? null,
+        }),
+        organization,
+      };
+    });
+  }
+
   return Object.freeze({
     async listUsersForAdmin() {
       const result = await pool.query(
@@ -65,8 +131,8 @@ export function createAuthRepository(pool) {
           [userId],
         );
         if (target.rowCount === 0) throw Object.assign(new Error("User not found"), { code: "USER_NOT_FOUND" });
-        if (target.rows[0].role !== "FUNDER" || target.rows[0].status !== "ACTIVE") {
-          throw Object.assign(new Error("Only an active Funder can bind a wallet"), { code: "FUNDER_WALLET_FORBIDDEN" });
+        if (!new Set(["FUNDER", "ORGANIZER"]).has(target.rows[0].role) || target.rows[0].status !== "ACTIVE") {
+          throw Object.assign(new Error("Only an active Organizer or Funder can bind a wallet"), { code: "FUNDER_WALLET_FORBIDDEN" });
         }
         try {
           const updated = await client.query(
@@ -77,8 +143,8 @@ export function createAuthRepository(pool) {
           );
           await client.query(
             `INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details, created_at)
-             VALUES ($1, $2, 'FUNDER_WALLET_BOUND', 'user', $3, $4, $5)`,
-            [randomUUID(), userId, userId, JSON.stringify({ wallet: walletAddress }), now],
+             VALUES ($1, $2, 'USER_WALLET_BOUND', 'user', $3, $4, $5)`,
+            [randomUUID(), userId, userId, JSON.stringify({ wallet: walletAddress, role: target.rows[0].role }), now],
           );
           return { userId, walletAddress: updated.rows[0].wallet_address };
         } catch (error) {
@@ -145,62 +211,13 @@ export function createAuthRepository(pool) {
       });
     },
 
-    async registerOrganizer({
-      name,
-      email,
-      passwordHash,
-      organizationName,
-      organizationType,
-      acceptedTermsVersion,
-      sessionTokenHash,
-      sessionExpiresAt,
-      now = new Date(),
-    }) {
-      const userId = randomUUID();
-      const organizationId = randomUUID();
-      const sessionId = randomUUID();
-      const normalizedEmail = normalizeEmail(email);
+    async registerAccount(input) {
+      if (!PUBLIC_REGISTRATION_ROLES.has(input?.role)) throw new TypeError("Role is not available for public registration");
+      return createRegisteredAccount(input);
+    },
 
-      return inTransaction(pool, async (client) => {
-        const organizationResult = await client.query(
-          `INSERT INTO organizations (id, name, type, verified, created_at, updated_at)
-           VALUES ($1, $2, $3, FALSE, $4, $4)
-           RETURNING id, name, type, verified`,
-          [organizationId, organizationName.trim(), organizationType.toUpperCase(), now],
-        );
-
-        const userResult = await client.query(
-          `INSERT INTO users (id, organization_id, name, email_normalized, password_hash, role, status, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, 'ORGANIZER', 'ACTIVE', $6, $6)
-           RETURNING id, name, email_normalized, role, organization_id, status`,
-          [userId, organizationId, name.trim(), normalizedEmail, passwordHash, now],
-        );
-
-        await client.query(
-          `INSERT INTO user_sessions (id, user_id, token_hash, expires_at, revoked_at, created_at)
-           VALUES ($1, $2, $3, $4, NULL, $5)`,
-          [sessionId, userId, sessionTokenHash, sessionExpiresAt, now],
-        );
-
-        // The registration service always provides the validated TERMS_VERSION;
-        // direct repository callers (tests, seeding) may omit it.
-        if (typeof acceptedTermsVersion === "string" && acceptedTermsVersion.length > 0) {
-          await client.query(
-            `INSERT INTO terms_acceptances (id, user_id, terms_version, accepted_at)
-             VALUES ($1, $2, $3, $4)`,
-            [randomUUID(), userId, acceptedTermsVersion, now],
-          );
-        }
-
-        const organization = organizationResult.rows[0];
-        const user = userResult.rows[0];
-        return {
-          user: {
-            ...publicUser({ ...user, organization_name: organization.name, organization_type: organization.type, organization_verified: organization.verified }),
-          },
-          organization,
-        };
-      });
+    async registerOrganizer(input) {
+      return createRegisteredAccount({ ...input, role: "ORGANIZER" });
     },
 
     async findUserByEmail(email) {
@@ -252,7 +269,7 @@ export function createAuthRepository(pool) {
         if (targetResult.rowCount === 0) throw Object.assign(new Error("User not found"), { code: "USER_NOT_FOUND" });
         const current = targetResult.rows[0];
         if (current.role === "ADMIN") throw Object.assign(new Error("Bootstrap Admin role cannot be changed"), { code: "ADMIN_ROLE_PROTECTED" });
-        if (current.organization_id == null) throw Object.assign(new Error("User organization is required for this role"), { code: "ORGANIZATION_REQUIRED" });
+        if (current.organization_id == null && role !== "FUNDER") throw Object.assign(new Error("User organization is required for this role"), { code: "ORGANIZATION_REQUIRED" });
         if (current.role === role) return publicUser(current);
 
         const updatedResult = await client.query(

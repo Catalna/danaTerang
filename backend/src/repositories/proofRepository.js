@@ -127,7 +127,7 @@ export function createProofRepository(pool) {
 
     async getProofAccessContext(evidenceId) {
       const result = await pool.query(
-        `SELECT e.id AS evidence_id, c.organization_id AS organizer_organization_id, c.funder_id
+        `SELECT e.id AS evidence_id, c.id AS campaign_id, c.organization_id AS organizer_organization_id, c.funder_id
          FROM evidence e
          JOIN milestones m ON m.id = e.milestone_id
          JOIN campaigns c ON c.id = m.campaign_id
@@ -138,9 +138,19 @@ export function createProofRepository(pool) {
       const row = result.rows[0];
       return {
         evidenceId: row.evidence_id,
+        campaignId: row.campaign_id,
         organizerOrganizationId: row.organizer_organization_id,
         funderId: row.funder_id,
       };
+    },
+
+    async hasDonatedToCampaign(userId, campaignId) {
+      const result = await pool.query(
+        `SELECT id FROM fundraising_donations WHERE donor_user_id = $1 AND campaign_id = $2
+         AND status IN ('PAID', 'REFUND_PENDING', 'REFUNDED') LIMIT 1`,
+        [userId, campaignId],
+      );
+      return result.rowCount > 0;
     },
 
     async findProofByProofId(proofId) {

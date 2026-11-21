@@ -8,7 +8,7 @@ This slice does not implement a login UI, email verification, password reset, MF
 
 ## Registration and Role Provisioning
 
-`POST /api/auth/register` accepts `name`, `email`, `password`, `organizationName`, and `organizationType` (`NGO`, `COMPANY`, `GOVERNMENT`, `COMMUNITY`, or `OTHER`). It creates an Organization with `verified=false` and an `ACTIVE` User with the fixed role `ORGANIZER` in one database transaction, then creates a session. The request schema rejects unknown keys such as `role`; the caller cannot select `FUNDER`, `VERIFIER`, `BENEFICIARY`, or `ADMIN`.
+`POST /api/auth/register` accepts `name`, `email`, `password`, `role`, and `accountType`. Public roles are limited to `ORGANIZER` and `FUNDER`; Admin, Verifier, and Beneficiary access remains separately managed. Organizer accounts require an Organization (`NGO`, `COMPANY`, `GOVERNMENT`, `COMMUNITY`, or `OTHER`). Funders can register as `INDIVIDUAL` without an Organization or as `ORGANIZATION` with one. Organization profiles begin with `verified=false`. The selected account, optional Organization, accepted terms, and session are created in one database transaction.
 
 The first Admin is created by an explicit one-time CLI command requiring `DATABASE_URL`, `BOOTSTRAP_ADMIN_NAME`, `BOOTSTRAP_ADMIN_EMAIL`, and `BOOTSTRAP_ADMIN_PASSWORD`. It refuses to run if an Admin already exists and never prints the password. The protected `PATCH /api/admin/users/:userId/role` route may assign `ORGANIZER`, `FUNDER`, `VERIFIER`, or `BENEFICIARY`; it cannot create another `ADMIN` or demote/disable the last active Admin. The change and session revocation for that user are committed together with an audit-log event.
 
@@ -27,7 +27,7 @@ New users start `ACTIVE`. Organization `verified` stays false until a separate r
 
 | Endpoint | Access | Behavior |
 |---|---|---|
-| `POST /api/auth/register` | Public, rate-limited | Validate registration, atomically create Organizer + Organization + session, set cookie. |
+| `POST /api/auth/register` | Public, rate-limited | Validate public role and account type, atomically create account + optional Organization + session, set cookie. |
 | `POST /api/auth/login` | Public, rate-limited | Normalize email, verify scrypt hash, create session, set cookie. Invalid email/password share the same `401 invalid_credentials` response. |
 | `GET /api/auth/me` | Authenticated session | Return only User ID, name, normalized email, role, organization ID, and organization summary. |
 | `POST /api/auth/logout` | Authenticated session | Revoke current session and clear cookie. |

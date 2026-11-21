@@ -15,10 +15,19 @@ function repositoryError(code, message = code) {
   return Object.assign(new Error(message), { code });
 }
 
-function inScope(actor, row) {
+async function inScope(pool, actor, row) {
   if (actor?.role === "ADMIN") return true;
   if (actor?.role === "ORGANIZER") return actor.organizationId === row.organization_id;
-  if (actor?.role === "FUNDER") return actor.id === row.funder_id;
+  if (actor?.role === "FUNDER") {
+    if (actor.id === row.funder_id) return true;
+    if (!row.campaign_id) return false;
+    const donation = await pool.query(
+      `SELECT id FROM fundraising_donations
+       WHERE campaign_id = $1 AND donor_user_id = $2 AND status IN ('PAID', 'REFUND_PENDING', 'REFUNDED') LIMIT 1`,
+      [row.campaign_id, actor.id],
+    );
+    return donation.rowCount > 0;
+  }
   return false;
 }
 
@@ -255,12 +264,12 @@ export function createEvidenceRepository(pool, { reviewRepository } = {}) {
     async listForMilestone(actor, milestoneId) {
       if (!["ADMIN", "ORGANIZER", "FUNDER"].includes(actor?.role)) throw repositoryError("FORBIDDEN");
       const milestone = await pool.query(
-        `SELECT m.id, c.organization_id, c.funder_id
+        `SELECT m.id, m.campaign_id, c.organization_id, c.funder_id
          FROM milestones m JOIN campaigns c ON c.id = m.campaign_id
          WHERE m.id = $1 LIMIT 1`,
         [milestoneId],
       );
-      if (milestone.rowCount === 0 || !inScope(actor, milestone.rows[0])) return null;
+      if (milestone.rowCount === 0 || !await inScope(pool, actor, milestone.rows[0])) return null;
       const result = await pool.query(
         `SELECT ${PUBLIC_EVIDENCE_COLUMNS}
          FROM evidence e LEFT JOIN verifications v ON v.evidence_id = e.id
@@ -280,7 +289,7 @@ export function createEvidenceRepository(pool, { reviewRepository } = {}) {
     async findEvidenceForUser(actor, evidenceId) {
       if (!["ADMIN", "ORGANIZER", "FUNDER"].includes(actor?.role)) throw repositoryError("FORBIDDEN");
       const result = await pool.query(
-        `SELECT e.*, c.organization_id, c.funder_id,
+        `SELECT e.*, m.campaign_id, c.organization_id, c.funder_id,
                 v.status AS verification_status, v.review_round_id, v.instruction_commitment
          FROM evidence e
          JOIN milestones m ON m.id = e.milestone_id
@@ -289,7 +298,7 @@ export function createEvidenceRepository(pool, { reviewRepository } = {}) {
          WHERE e.id = $1 LIMIT 1`,
         [evidenceId],
       );
-      if (result.rowCount === 0 || !inScope(actor, result.rows[0])) return null;
+      if (result.rowCount === 0 || !await inScope(pool, actor, result.rows[0])) return null;
       if (actor.role === "ADMIN") return publicAdminEvidence(result.rows[0]);
       if (actor.role === "FUNDER") return publicFunderEvidence(result.rows[0]);
       const summaries = await ocrRepository.getLatestSummaries([result.rows[0].id]);

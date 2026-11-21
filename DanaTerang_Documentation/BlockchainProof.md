@@ -10,7 +10,7 @@ It does not store original receipts, photos, or reports.
 
 It does not automatically prove that real-world events are truthful.
 
-In the Phase 1 demo, the chain records the permissioned 2-of-3 Verifier quorum and a versioned evidence/review commitment on **Ethereum Sepolia Testnet**. Verifiers sign with organization-controlled wallets; a backend relayer submits transactions and pays gas. Organizers and Funders do not need wallets. The proof does not record or confirm external payment reports.
+The chain records the permissioned 2-of-3 Verifier quorum, a versioned evidence/review commitment, and the H-48 Organizer-signed campaign terms commitment on **Ethereum Sepolia Testnet**. Verifiers sign with organization-controlled wallets; an authorized Organizer signs campaign terms; a backend relayer submits transactions and pays gas. Donors do not need wallets. Campaign terms proof does not hold, record, or confirm Rupiah payment; that remains with the payment provider and off-chain escrow ledger.
 
 ## 2. What Blockchain Proves
 

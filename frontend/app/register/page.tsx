@@ -35,6 +35,8 @@ function registrationMessage(error: unknown) {
 
 export default function RegisterPage() {
   const router = useRouter();
+  const [role, setRole] = useState<"ORGANIZER" | "FUNDER">("ORGANIZER");
+  const [funderAccountType, setFunderAccountType] = useState<"INDIVIDUAL" | "ORGANIZATION">("INDIVIDUAL");
   const [name, setName] = useState("");
   const [organizationName, setOrganizationName] = useState("");
   const [organizationType, setOrganizationType] = useState<(typeof ORGANIZATION_TYPES)[number]>("COMMUNITY");
@@ -45,19 +47,34 @@ export default function RegisterPage() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const isOrganizationAccount = role === "ORGANIZER" || funderAccountType === "ORGANIZATION";
 
-  useEffect(() => setReady(true), []);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("role") === "FUNDER") setRole("FUNDER");
+    setReady(true);
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setSubmitting(true);
     try {
+      const accountType = role === "ORGANIZER" ? "ORGANIZATION" : funderAccountType;
       await requestJson("/api/auth/register", {
         method: "POST",
-        body: JSON.stringify({ name, email, password, organizationName, organizationType, acceptedTermsVersion: TERMS_VERSION }),
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          role,
+          accountType,
+          ...(accountType === "ORGANIZATION" ? { organizationName, organizationType } : {}),
+          acceptedTermsVersion: TERMS_VERSION,
+        }),
       });
-      router.replace("/campaigns");
+      const requestedPath = new URLSearchParams(window.location.search).get("next");
+      const defaultPath = role === "FUNDER" ? "/dashboard" : "/campaigns";
+      router.replace(requestedPath?.startsWith("/") && !requestedPath.startsWith("//") ? requestedPath : defaultPath);
     } catch (cause) {
       setError(registrationMessage(cause));
     } finally {
@@ -78,14 +95,44 @@ export default function RegisterPage() {
         </Link>
 
         <div className="auth-panel-intro">
-          <p className="eyebrow">MULAI DARI ORGANISASI</p>
-          <h1 id="register-title" className="auth-title">Buat akun Organizer</h1>
-          <p className="auth-intro">Daftarkan organisasi untuk mengelola campaign dan bukti program.</p>
+          <p className="eyebrow">DAFTAR DI DANATERANG</p>
+          <h1 id="register-title" className="auth-title">Buat akun {role === "ORGANIZER" ? "Organizer" : "Funder"}</h1>
+          <p className="auth-intro">
+            {role === "ORGANIZER"
+              ? "Daftarkan organisasi untuk mengelola campaign dan bukti program."
+              : funderAccountType === "INDIVIDUAL"
+                ? "Buat akun perorangan untuk mendukung program dan memantau bukti penyaluran."
+                : "Daftarkan komunitas atau instansi untuk mendukung program dan memantau bukti penyaluran."}
+          </p>
         </div>
 
         <form className="auth-form" onSubmit={submit} aria-busy={submitting}>
           <div className="form-field">
-            <label htmlFor="register-name">Nama lengkap PIC</label>
+            <label htmlFor="register-role">Daftar sebagai</label>
+            <select id="register-role" name="role" value={role} onChange={(event) => setRole(event.target.value as "ORGANIZER" | "FUNDER")}>
+              <option value="ORGANIZER">Organizer / Pelaksana Program</option>
+              <option value="FUNDER">Funder / Donatur</option>
+            </select>
+          </div>
+
+          {role === "FUNDER" && (
+            <div className="form-field">
+              <label htmlFor="register-account-type">Jenis akun Funder</label>
+              <select
+                id="register-account-type"
+                name="accountType"
+                value={funderAccountType}
+                onChange={(event) => setFunderAccountType(event.target.value as "INDIVIDUAL" | "ORGANIZATION")}
+              >
+                <option value="INDIVIDUAL">Perorangan</option>
+                <option value="ORGANIZATION">Komunitas / instansi</option>
+              </select>
+              <p className="field-hint">Pilih perorangan untuk mendaftar tanpa profil organisasi.</p>
+            </div>
+          )}
+
+          <div className="form-field">
+            <label htmlFor="register-name">{role === "FUNDER" && funderAccountType === "INDIVIDUAL" ? "Nama lengkap" : "Nama lengkap PIC"}</label>
             <input
               id="register-name"
               name="name"
@@ -98,33 +145,37 @@ export default function RegisterPage() {
               required
             />
           </div>
-          <div className="form-field">
-            <label htmlFor="register-organization">Nama organisasi</label>
-            <input
-              id="register-organization"
-              name="organizationName"
-              autoComplete="organization"
-              placeholder="PT / Yayasan / LSM..."
-              value={organizationName}
-              onChange={(event) => setOrganizationName(event.target.value)}
-              minLength={2}
-              maxLength={180}
-              required
-            />
-          </div>
-          <div className="form-field">
-            <label htmlFor="register-organization-type">Jenis organisasi</label>
-            <select
-              id="register-organization-type"
-              name="organizationType"
-              value={organizationType}
-              onChange={(event) => setOrganizationType(event.target.value as (typeof ORGANIZATION_TYPES)[number])}
-            >
-              {ORGANIZATION_TYPES.map((type) => (
-                <option key={type} value={type}>{ORG_TYPE_LABELS[type]}</option>
-              ))}
-            </select>
-          </div>
+          {isOrganizationAccount && (
+            <>
+              <div className="form-field">
+                <label htmlFor="register-organization">{role === "FUNDER" ? "Nama komunitas / instansi" : "Nama organisasi"}</label>
+                <input
+                  id="register-organization"
+                  name="organizationName"
+                  autoComplete="organization"
+                  placeholder="Komunitas / instansi / perusahaan..."
+                  value={organizationName}
+                  onChange={(event) => setOrganizationName(event.target.value)}
+                  minLength={2}
+                  maxLength={180}
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label htmlFor="register-organization-type">Jenis organisasi</label>
+                <select
+                  id="register-organization-type"
+                  name="organizationType"
+                  value={organizationType}
+                  onChange={(event) => setOrganizationType(event.target.value as (typeof ORGANIZATION_TYPES)[number])}
+                >
+                  {ORGANIZATION_TYPES.map((type) => (
+                    <option key={type} value={type}>{ORG_TYPE_LABELS[type]}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
           <div className="form-field">
             <label htmlFor="register-email">Email</label>
             <input
@@ -221,22 +272,22 @@ export default function RegisterPage() {
           <li>
             <span>01</span>
             <div>
-              <strong>Role Organizer</strong>
-              <p>Registrasi publik hanya membuat akun Organizer untuk mengelola program.</p>
+              <strong>Pilih peran akun</strong>
+              <p>Daftar sebagai Organizer, atau Funder perorangan maupun komunitas/instansi.</p>
             </div>
           </li>
           <li>
             <span>02</span>
             <div>
-              <strong>Role Funder &amp; Admin</strong>
-              <p>Role Funder dan Admin diberikan oleh Admin DanaTerang setelah verifikasi.</p>
+              <strong>Akun Funder</strong>
+              <p>Akun Funder dapat langsung dibuat. Profil komunitas/instansi dapat diverifikasi Admin.</p>
             </div>
           </li>
           <li>
             <span>03</span>
             <div>
               <strong>Verifier Independen</strong>
-              <p>Verifier direkrut secara terpisah dan masuk roster setelah verifikasi organisasi.</p>
+              <p>Akses Admin dan Verifier tetap dikelola terpisah untuk menjaga independensi dan keamanan.</p>
             </div>
           </li>
         </ol>

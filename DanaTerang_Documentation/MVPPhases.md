@@ -8,7 +8,7 @@ The original proposal PDF and team reference DOCX remain unchanged as records of
 
 ## 2. Product Boundary
 
-DanaTerang structures evidence and review around funded-program milestones. It may record payment information supplied by a participant, but it does not move, hold, or independently verify fiat funds in the MVP.
+DanaTerang structures public fundraising and evidence review around funded-program milestones. Rupiah movement is performed by a payment/escrow provider; the application records verified provider events and double-entry campaign balances. Ethereum records signed campaign terms and evidence proof commitments, never bank Rupiah.
 
 The product makes evidence history more reviewable and tamper-evident. OCR flags and blockchain proofs do not establish that a real-world expense, document, or activity is truthful. A permissioned 2-of-3 Verifier quorum makes the evidence-review decision; Admin cannot override it.
 
@@ -20,17 +20,21 @@ Demonstrate one complete evidence-review path for a campaign milestone within th
 
 ### Included flow
 
-1. Create or open a demo campaign and milestone.
-2. Upload evidence and calculate a SHA-256 hash for each original file.
-3. Store the original file off-chain and run Indonesian/English OCR with per-field confidence.
-4. Run lightweight consistency checks and show their reasons as screening flags.
-5. Let a permissioned panel of three independent Verifiers sign decisions; two matching votes approve the evidence, request a revision, or reject it.
-6. Anchor a versioned canonical evidence/review package hash on Ethereum Sepolia Testnet; expose its transaction through Sepolia Etherscan.
-7. Show a public audit page with non-sensitive campaign, milestone, review, and proof information.
+1. Organizer creates a public campaign with a fundraising target, scheduled close, cause category, and milestones; Admin publishes it.
+2. Authenticated Funders can donate in Rupiah. The target is not a cap; provider-confirmed donations are credited to a campaign escrow ledger.
+3. Only the authorized Organizer signs the final campaign terms at H-48. Terms are immutable after signature while donations remain open to scheduled close. If not signed, intake stops, the campaign is cancelled, and refunds are queued.
+4. At close, the campaign may proceed below or above target; ledger funds remain in provider escrow until milestones are ready.
+5. Upload evidence and calculate a SHA-256 hash for each original file.
+6. Store the original file off-chain and run Indonesian/English OCR with per-field confidence.
+7. Run lightweight consistency checks and show their reasons as screening flags.
+8. Let a permissioned panel of three independent Verifiers sign decisions; two matching votes approve the evidence, request a revision, or reject it.
+9. Anchor a versioned canonical evidence/review package hash on Ethereum Sepolia Testnet; expose its transaction through Sepolia Etherscan.
+10. Once a milestone is completed and evidence passes 2-of-3 review, request the provider payout to an Admin-verified organization recipient.
+11. Show public non-sensitive fundraising progress, target, provider fees, escrow balance, milestones, review, and proof information.
 
 ### Payment handling
 
-Payment remains outside DanaTerang. Manually entered payment information is optional for the demo and is not a core acceptance criterion. If shown, it must be described as **reported by the funder** (or identify the reporting party); it must not be presented as independently verified or as proof that a transfer settled. Payment references and supporting documents are not public by default and are not part of the demo's on-chain proof.
+The selected payment/escrow provider remains a deployment prerequisite. Until configured, real checkout, refund, and payout operations fail closed. Manual payment reports are a legacy compatibility feature, not the crowdfunding escrow path. Provider fees, refunds, milestone payouts, related-cause transfers, and escrow must reconcile exactly. Surplus may be redirected to a same-category cause only with every donor's consent and Admin approval; otherwise it must be refunded.
 
 ### Proof and revision behavior
 
@@ -46,12 +50,13 @@ Payment remains outside DanaTerang. Manually entered payment information is opti
 - Public audit pages show status and an approved non-sensitive summary; original evidence is not downloadable by default.
 - The initial canonical package serialization/test vector remains in `BlockchainProof.md` as legacy schema version 1. New peer-quorum proofs use schema version 2, including the confirmed review round, decision, contract address, transaction hash, and block number; its exact fields and reproducible hash vector are specified in `BlockchainProof.md`. Operational approval/publication rules for redacted evidence remain a pilot prerequisite.
 - A campaign appears on the public audit page only after an Admin explicitly publishes it. New campaigns are private by default; the public projection excludes organizer/funder identities, filenames, original evidence, OCR, private review notes, revision instructions, and payment references.
-- The backend service wallet submits transactions and pays Sepolia gas using Sepolia ETH; Organizers and Funders do not need a wallet.
+- The backend service wallet relays Verifier votes and pays Sepolia gas using Sepolia ETH.
+- The authorized Organizer binds a wallet and signs campaign terms at H-48. Donors do not need wallets.
 - Assigned Verifiers sign EIP-712 votes with their own organization-controlled wallets; the service wallet relays those signatures and pays gas. Admin manages operational metadata only and cannot vote, choose the panel, or override quorum.
 
 ### Out of scope
 
-- Payment-provider integration, fiat custody, and on-chain escrow.
+- Production payment-provider selection, fiat custody/escrow onboarding, and live settlement credentials (the provider adapter interface and test contract are implemented; live configuration remains required).
 - Formal organization accreditation or an independent-auditor service.
 - Beneficiary accounts or beneficiary confirmation.
 - Claims of automatic fraud detection, statutory audit, or proof of real-world truth.

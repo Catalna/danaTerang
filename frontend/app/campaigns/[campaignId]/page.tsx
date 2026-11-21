@@ -15,12 +15,16 @@ import { requestVerifierAddress, signTypedData } from "../../../lib/verifierWall
 type Campaign = {
   id: string;
   organizationId: string;
-  funderId: string;
+  funderId: string | null;
   title: string;
   description: string;
   totalBudget: string;
   currency: string;
   status: "DRAFT" | "ACTIVE" | "COMPLETED" | "CANCELLED";
+  causeCategory?: string;
+  fundraisingStatus?: "NOT_CONFIGURED" | "DRAFT" | "OPEN" | "LOCKED" | "CLOSED" | "CANCELLED";
+  fundraisingCloseAt?: string | null;
+  termsLockedAt?: string | null;
 };
 
 function campaignStatusLabel(status: Campaign["status"]) {
@@ -40,6 +44,9 @@ type Milestone = {
   orderIndex: number;
   status: "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 };
+
+type OpenFundraisingCampaign = { id: string; title: string; causeCategory: string; fundraisingTarget: string; escrowBalance: string; acceptingDonations: boolean };
+type Reconciliation = { donations: string; providerFees: string; milestonePayouts: string; refunds: string; transfersIn: string; transfersOut: string; platformSupport: string; escrow: string };
 
 type Evidence = {
   id: string;
@@ -128,6 +135,7 @@ export default function CampaignDetailPage() {
   const [proofError, setProofError] = useState("");
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
   const [pending, setPending] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -140,6 +148,11 @@ export default function CampaignDetailPage() {
   const [revisionFiles, setRevisionFiles] = useState<Record<string, File | null>>({});
   const [revisionErrors, setRevisionErrors] = useState<Record<string, string>>({});
   const [revisionUploadingId, setRevisionUploadingId] = useState<string | null>(null);
+  const [reconciliation, setReconciliation] = useState<Reconciliation | null>(null);
+  const [relatedCampaigns, setRelatedCampaigns] = useState<OpenFundraisingCampaign[]>([]);
+  const [surplusDestinationId, setSurplusDestinationId] = useState("");
+  const [surplusAmount, setSurplusAmount] = useState("");
+  const [surplusReason, setSurplusReason] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const polling = useRef(false);
 
@@ -196,6 +209,22 @@ export default function CampaignDetailPage() {
   useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
+    if (user?.role !== "ORGANIZER" || campaign?.fundraisingStatus !== "CLOSED") return;
+    void Promise.all([
+      requestJson<{ reconciliation: Reconciliation }>(`/api/campaigns/${campaignId}/reconciliation`),
+      requestJson<{ campaigns: OpenFundraisingCampaign[] }>("/api/public/fundraising-campaigns"),
+    ]).then(([ledger, directory]) => {
+      setReconciliation(ledger.reconciliation);
+      const related = directory.campaigns.filter((item) => item.id !== campaign.id && item.causeCategory === campaign.causeCategory && item.acceptingDonations);
+      setRelatedCampaigns(related);
+      setSurplusDestinationId((current) => current || related[0]?.id || "");
+    }).catch(() => {
+      setReconciliation(null);
+      setRelatedCampaigns([]);
+    });
+  }, [campaign, campaignId, user?.role]);
+
+  useEffect(() => {
     const firstInProgress = milestones.find((milestone) => milestone.status === "IN_PROGRESS");
     setSelectedMilestoneId((current) => current && milestones.some((milestone) => milestone.id === current && milestone.status === "IN_PROGRESS")
       ? current
@@ -217,6 +246,7 @@ export default function CampaignDetailPage() {
         method: "POST",
         body: JSON.stringify({ signature, walletAddress: address }),
       });
+      await load(true);
     } catch (cause) {
       if (cause instanceof ApiError && cause.status === 503 && cause.code === "funding_disabled") {
         setActionError("Pencatatan pendanaan di blockchain belum dikonfigurasi di server. Hubungi Admin.");
@@ -233,6 +263,81 @@ export default function CampaignDetailPage() {
       } else {
         setActionError("Pendanaan belum tercatat. Periksa wallet dan koneksi lalu coba lagi.");
       }
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function signFinalCampaignTerms() {
+    setActionError("");
+    setPending(true);
+    try {
+      const wallet = await requestJson<{ walletAddress: string | null }>("/api/auth/wallet");
+      if (!wallet.walletAddress) throw Object.assign(new Error("campaign_signer_wallet_not_bound"), { code: "campaign_signer_wallet_not_bound" });
+      const prepared = await requestJson<{ typedData: Parameters<typeof signTypedData>[1]; alreadyLocked?: boolean }>(
+        `/api/campaigns/${campaignId}/terms/prepare`,
+      );
+      if (prepared.alreadyLocked) {
+        await load(true);
+        return;
+      }
+      const signature = await signTypedData(wallet.walletAddress, prepared.typedData);
+      await requestJson(`/api/campaigns/${campaignId}/terms/lock`, {
+        method: "POST",
+        body: JSON.stringify({ signature, walletAddress: wallet.walletAddress }),
+      });
+      await load(true);
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.code === "campaign_terms_window_not_open") {
+        setActionError("Tanda tangan campaign tersedia mulai H-48 sebelum campaign ditutup.");
+      } else if (cause instanceof ApiError && cause.code === "campaign_signer_wallet_not_bound") {
+        setActionError("Hubungkan wallet Organizer terlebih dahulu.");
+      } else if (cause instanceof ApiError && cause.code === "campaign_terms_disabled") {
+        setActionError("Campaign Terms Registry belum dikonfigurasi di server.");
+      } else if (cause instanceof Error && (cause.message === "user_rejected" || cause.message === "4001")) {
+        setActionError("Tanda tangan dibatalkan di wallet.");
+      } else {
+        setActionError("Ketentuan campaign belum dapat dikunci. Periksa wallet dan coba lagi.");
+      }
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function requestSurplusTransfer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setActionError("");
+    setActionMessage("");
+    setPending(true);
+    try {
+      await requestJson(`/api/campaigns/${campaignId}/surplus-transfers`, {
+        method: "POST",
+        body: JSON.stringify({ destinationCampaignId: surplusDestinationId, amount: surplusAmount, reason: surplusReason }),
+      });
+      setActionMessage("Permintaan pengalihan dikirim untuk persetujuan Admin.");
+      setSurplusAmount("");
+      setSurplusReason("");
+    } catch (cause) {
+      setActionError(cause instanceof ApiError && cause.code === "donor_consent_required"
+        ? "Sebagian donatur memilih refund; sisa dana tidak dapat dialihkan."
+        : "Permintaan transfer belum dapat dibuat. Periksa saldo escrow dan campaign tujuan.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function refundSurplus() {
+    setActionError("");
+    setActionMessage("");
+    setPending(true);
+    try {
+      const result = await requestJson<{ refunds: { amount: string }[] }>(`/api/campaigns/${campaignId}/surplus-refunds`, { method: "POST", body: JSON.stringify({}) });
+      setActionMessage(`Refund saldo escrow dialokasikan ke ${result.refunds.length} donatur dan sedang diproses provider.`);
+      await load(true);
+    } catch (cause) {
+      setActionError(cause instanceof ApiError && cause.code === "milestones_incomplete"
+        ? "Selesaikan atau batalkan seluruh milestone sebelum mengembalikan sisa dana."
+        : "Refund saldo belum dapat dimulai. Pastikan tidak ada payout/refund yang tertunda dan provider aktif.");
     } finally {
       setPending(false);
     }
@@ -415,6 +520,12 @@ export default function CampaignDetailPage() {
               <div><dt>Anggaran</dt><dd>{formatMoney(campaign.totalBudget, campaign.currency)}</dd></div>
               <div><dt>Dialokasikan ke milestone</dt><dd>{formatMinorUnits(allocatedBudget, campaign.currency)}</dd></div>
             </dl>
+            {campaign.fundraisingStatus === "CANCELLED" && (
+              <p className="workspace-error" role="status">Penggalangan dana dibatalkan karena ketentuan final belum ditandatangani pada H-48. Refund sedang diproses.</p>
+            )}
+            {campaign.fundraisingStatus === "CLOSED" && (
+              <p className="workspace-success" role="status">Penggalangan dana ditutup. Saldo escrow tersedia untuk pencairan milestone yang lolos verifikasi.</p>
+            )}
             {canActivate && campaign.status === "DRAFT" && (
               <div className="workspace-actions">
                 <button className="action-button action-button--primary" disabled={pending || milestones.length === 0} onClick={() => void fundWithWallet()} aria-describedby="fund-signature-hint">
@@ -424,8 +535,59 @@ export default function CampaignDetailPage() {
                 {milestones.length === 0 && <p className="field-hint">Tambahkan minimal satu milestone sebelum campaign didanai.</p>}
               </div>
             )}
+            {user?.role === "ORGANIZER" && campaign.fundraisingStatus === "OPEN" && (
+              <div className="workspace-actions">
+                {campaign.termsLockedAt ? (
+                  <p className="workspace-success" role="status">Ketentuan campaign sudah ditandatangani dan dikunci.</p>
+                ) : campaign.fundraisingCloseAt && Date.now() >= new Date(campaign.fundraisingCloseAt).getTime() - 48 * 60 * 60 * 1000 ? (
+                  <button className="action-button action-button--primary" type="button" disabled={pending} onClick={() => void signFinalCampaignTerms()}>
+                    {pending ? "Menunggu tanda tangan…" : "Tanda tangani & kunci ketentuan campaign"}
+                  </button>
+                ) : (
+                  <p className="field-hint">Ketentuan final harus ditandatangani Organizer pada H-48. Donasi tetap berlangsung hingga waktu tutup.</p>
+                )}
+              </div>
+            )}
           </section>
 
+          {user?.role === "ORGANIZER" && campaign.fundraisingStatus === "CLOSED" && (
+            <section className="workspace-panel" aria-labelledby="escrow-reconciliation-heading">
+              <p className="eyebrow">LEDGER ESCROW</p>
+              <h2 id="escrow-reconciliation-heading">Rekonsiliasi saldo campaign</h2>
+              {reconciliation ? (
+                <dl className="org-details-dl">
+                  <div className="org-dl-row"><dt>Donasi terkonfirmasi</dt><dd>{formatMoney(reconciliation.donations, campaign.currency)}</dd></div>
+                  <div className="org-dl-row"><dt>Biaya payment provider</dt><dd>{formatMoney(reconciliation.providerFees, campaign.currency)}</dd></div>
+                  <div className="org-dl-row"><dt>Payout milestone</dt><dd>{formatMoney(reconciliation.milestonePayouts, campaign.currency)}</dd></div>
+                  <div className="org-dl-row"><dt>Refund</dt><dd>{formatMoney(reconciliation.refunds, campaign.currency)}</dd></div>
+                  <div className="org-dl-row"><dt>Transfer masuk / keluar</dt><dd>{formatMoney(reconciliation.transfersIn, campaign.currency)} / {formatMoney(reconciliation.transfersOut, campaign.currency)}</dd></div>
+                  <div className="org-dl-row"><dt>Dukungan biaya refund platform</dt><dd>{formatMoney(reconciliation.platformSupport, campaign.currency)}</dd></div>
+                  <div className="org-dl-row"><dt>Saldo escrow tersedia</dt><dd><strong>{formatMoney(reconciliation.escrow, campaign.currency)}</strong></dd></div>
+                </dl>
+              ) : <p className="field-hint">Ringkasan ledger belum dapat dimuat.</p>}
+              <p className="field-hint">Donasi + transfer masuk + dukungan biaya = biaya provider + payout + refund + transfer keluar + escrow.</p>
+              {relatedCampaigns.length > 0 ? (
+                <form className="form-grid" onSubmit={(event) => void requestSurplusTransfer(event)} aria-busy={pending}>
+                  <div className="form-field form-field--full">
+                    <label htmlFor="surplus-destination">Campaign sejenis untuk sisa dana</label>
+                    <select id="surplus-destination" value={surplusDestinationId} onChange={(event) => setSurplusDestinationId(event.target.value)} required>
+                      {relatedCampaigns.map((item) => <option key={item.id} value={item.id}>{item.title} · target {formatMoney(item.fundraisingTarget, "IDR")}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-field"><label htmlFor="surplus-amount">Jumlah transfer (IDR)</label><input id="surplus-amount" inputMode="decimal" value={surplusAmount} onChange={(event) => setSurplusAmount(event.target.value)} required /></div>
+                  <div className="form-field form-field--full"><label htmlFor="surplus-reason">Alasan pengalihan</label><textarea id="surplus-reason" value={surplusReason} onChange={(event) => setSurplusReason(event.target.value)} minLength={5} maxLength={1000} required /></div>
+                  <button className="action-button action-button--secondary" type="submit" disabled={pending || !surplusDestinationId}>{pending ? "Mengirim…" : "Minta persetujuan transfer sisa dana"}</button>
+                </form>
+              ) : <p className="field-hint">Belum ada campaign terbuka dengan kategori tujuan yang sama.</p>}
+              <div className="workspace-actions">
+                <button className="action-button action-button--secondary" type="button" disabled={pending || !reconciliation || reconciliation.escrow === "0.00"} onClick={() => void refundSurplus()}>
+                  {pending ? "Memproses…" : "Kembalikan saldo escrow kepada donatur"}
+                </button>
+              </div>
+            </section>
+          )}
+
+          <p className={actionMessage ? "workspace-success" : "visually-hidden"} role="status" aria-live="polite">{actionMessage}</p>
           <p className={actionError ? "workspace-error" : "visually-hidden"} role="alert" aria-live="assertive">{actionError}</p>
 
           <section className="workspace-panel" aria-labelledby="milestones-heading">

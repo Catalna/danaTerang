@@ -32,7 +32,7 @@ def main():
 
         assert page.get_by_role("heading", name="Renovasi SD Harapan", level=1).is_visible()
         assert page.get_by_role("link", name="Masuk").is_visible()
-        assert page.get_by_role("link", name="Buat akun").is_visible()
+        assert page.get_by_role("link", name="Buat akun", exact=True).is_visible()
         assert page.get_by_text("Belum ada program yang dipublikasikan", exact=False).count() == 0
         assert page.get_by_text("Disetujui oleh quorum 2-dari-3", exact=False).is_visible()
         assert page.get_by_text("Tahap direncanakan", exact=False).is_visible()
@@ -109,6 +109,9 @@ def main():
         assert "tidak cocok" in login_error.inner_text()
         assert page.get_by_label("Email").input_value() == "ana@example.com"
 
+        page.goto(f"{BASE_URL}/register?role=FUNDER", wait_until="networkidle")
+        page.get_by_role("heading", name="Buat akun Funder").wait_for(state="visible")
+        assert page.get_by_label("Jenis akun Funder").is_visible()
         page.goto(f"{BASE_URL}/register", wait_until="networkidle")
         page.get_by_role("heading", name="Buat akun Organizer").wait_for(state="visible")
         assert page.get_by_label("Nama lengkap").is_visible()
@@ -117,6 +120,13 @@ def main():
         assert page.get_by_label("Email").is_visible()
         assert page.get_by_role("textbox", name="Kata sandi").is_visible()
         expect(page.get_by_role("button", name="Buat akun")).to_be_enabled(timeout=15_000)
+        page.get_by_label("Daftar sebagai").select_option("FUNDER")
+        page.get_by_role("heading", name="Buat akun Funder").wait_for(state="visible")
+        page.get_by_label("Jenis akun Funder").select_option("INDIVIDUAL")
+        assert not page.get_by_label("Nama komunitas / instansi").is_visible()
+        page.get_by_label("Jenis akun Funder").select_option("ORGANIZATION")
+        assert page.get_by_label("Nama komunitas / instansi").is_visible()
+        page.get_by_label("Daftar sebagai").select_option("ORGANIZER")
         page.route("**/api/auth/register", lambda route: route.fulfill(status=409, json={"error": "account_unavailable"}))
         page.get_by_label("Nama lengkap").fill("Ana Winata")
         page.get_by_label("Nama organisasi").fill("Komunitas Terang")
@@ -129,6 +139,57 @@ def main():
         register_error.wait_for(state="visible")
         assert page.get_by_label("Nama lengkap").input_value() == "Ana Winata"
         assert page.get_by_label("Email").input_value() == "ana@example.com"
+
+        fundraising_id = "c0a80101-0000-4000-8000-000000000001"
+        fundraising_campaign = {
+            "id": fundraising_id,
+            "organizationName": "Komunitas Tanggap Bencana",
+            "causeCategory": "DISASTER_RELIEF",
+            "title": "Bantuan Banjir",
+            "description": "Bantuan logistik dan pemulihan warga terdampak.",
+            "fundraisingTarget": "50000000.00",
+            "grossRaised": "60000000.00",
+            "providerFees": "300000.00",
+            "escrowBalance": "59700000.00",
+            "donorCount": 25,
+            "goalPercent": 120,
+            "currency": "IDR",
+            "closeAt": "2026-12-31T12:00:00.000Z",
+            "acceptingDonations": True,
+            "termsLockedAt": None,
+            "amendmentsUsed": 0,
+            "donationCheckoutAvailable": False,
+            "milestones": [],
+        }
+        page.route("**/api/public/fundraising-campaigns", lambda route: route.fulfill(status=200, json={"campaigns": [fundraising_campaign]}))
+        page.goto(f"{BASE_URL}/fundraising", wait_until="networkidle")
+        page.get_by_role("heading", name="Pilih campaign untuk didukung").wait_for(state="visible")
+        assert page.get_by_text("120%", exact=False).is_visible()
+        assert page.get_by_text("Pembayaran Rupiah belum dikonfigurasi", exact=False).is_visible()
+        page.route(f"**/api/public/fundraising-campaigns/{fundraising_id}", lambda route: route.fulfill(status=200, json={"campaign": fundraising_campaign}))
+        page.route("**/api/auth/me", lambda route: route.fulfill(status=401, json={"error": "authentication_required"}))
+        page.goto(f"{BASE_URL}/fundraising/{fundraising_id}", wait_until="networkidle")
+        page.get_by_role("heading", name="Bantuan Banjir").wait_for(state="visible")
+        assert page.get_by_role("link", name="Masuk untuk berdonasi").is_visible()
+
+        page.unroute("**/api/auth/me")
+        fundraising_campaign["donationCheckoutAvailable"] = True
+        page.route("**/api/auth/me", lambda route: route.fulfill(status=200, json={"user": {"id": "e7a84903-0e85-4416-b42a-72d76f97d290", "role": "FUNDER"}}))
+        donation_id = "d0a80101-0000-4000-8000-000000000002"
+        page.route(
+            f"**/api/campaigns/{fundraising_id}/donations",
+            lambda route: route.fulfill(status=201, json={"donation": {"id": donation_id, "checkoutUrl": f"{BASE_URL}/fundraising/demo-checkout?donationId={donation_id}"}}),
+        )
+        page.goto(f"{BASE_URL}/fundraising/{fundraising_id}", wait_until="networkidle")
+        page.get_by_label("Jumlah donasi (Rupiah)").fill("25000")
+        page.get_by_role("button", name="Lanjut ke pembayaran").click()
+        page.get_by_role("heading", name="Pembayaran donasi demo").wait_for(state="visible")
+        page.route(
+            f"**/api/test/fundraising/donations/{donation_id}/settle",
+            lambda route: route.fulfill(status=200, json={"donation": {"id": donation_id, "status": "PAID", "amount": "25000.00"}}),
+        )
+        page.get_by_role("button", name="Simulasikan pembayaran berhasil").click()
+        page.wait_for_url(f"{BASE_URL}/fundraising/donations?simulated=1")
         browser.close()
 
 

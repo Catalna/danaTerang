@@ -156,6 +156,11 @@ def open_assigned_review(page, file_name):
                 refresh.click()
             page.wait_for_timeout(250)
     queue = page.request.get(f"{BASE_URL}/api/verifier/reviews").json()
+    matching = next((item for item in queue.get("reviews", []) if item.get("fileName") == file_name), None)
+    if matching:
+        page.goto(f"{BASE_URL}/verifier/reviews/{matching['reviewRoundId']}", wait_until="networkidle")
+        page.get_by_role("heading", name="Tinjau evidence versi ini").wait_for(state="visible")
+        return
     raise AssertionError(
         f"Assigned review did not appear in the queue: {file_name}; "
         f"queue={queue}"
@@ -243,23 +248,43 @@ def main():
         organizer.get_by_role("heading", name="Buat campaign").wait_for(state="visible")
         assert_accessible(organizer)
         organizer.screenshot(path=str(SCREENSHOT_DIR / "campaign-create-desktop.png"), full_page=True)
-        organizer.get_by_label("Judul campaign").fill("Renovasi SD Harapan")
-        organizer.get_by_label("Deskripsi").fill("Renovasi ruang belajar")
-        organizer.get_by_label("Anggaran total").fill("100000000.00")
-        organizer.get_by_label("Mata uang").select_option("IDR")
-        organizer.get_by_label("Funder").select_option(label="Browser Test Funder — Browser Test Foundation")
-        organizer.get_by_role("button", name="Simpan draft").click()
+        assert organizer.get_by_label("Target penggalangan dana").is_visible()
+        assert organizer.get_by_label("Kategori tujuan").is_visible()
+        assert organizer.get_by_label("Tanggal dan waktu campaign ditutup").is_visible()
+        assert organizer.get_by_label("Funder").count() == 0
+
+        # The remaining evidence-review fixture uses a legacy preassigned Funder
+        # so this test can continue exercising the existing quorum/revision path.
+        funder_response = organizer.request.get(f"{BASE_URL}/api/funders")
+        assert funder_response.status == 200, funder_response.text()
+        test_funder = next(item for item in funder_response.json()["funders"] if item["name"] == "Browser Test Funder")
+        created_response = organizer.request.post(
+            f"{BASE_URL}/api/campaigns",
+            headers={"Origin": BASE_URL},
+            data={
+                "funderId": test_funder["id"],
+                "title": "Renovasi SD Harapan",
+                "description": "Renovasi ruang belajar",
+                "totalBudget": "100000000.00",
+                "currency": "IDR",
+                "fundingMode": "EXTERNAL_TRACKING",
+            },
+        )
+        assert created_response.status == 201, created_response.text()
+        campaign_id = created_response.json()["campaign"]["id"]
+        created_milestone = organizer.request.post(
+            f"{BASE_URL}/api/campaigns/{campaign_id}/milestones",
+            headers={"Origin": BASE_URL},
+            data={"title": "Pembelian material", "description": "Material utama renovasi", "budgetAmount": "60000000.00", "currency": "IDR", "orderIndex": 0},
+        )
+        assert created_milestone.status == 201, created_milestone.text()
+        organizer.goto(f"{BASE_URL}/campaigns/{campaign_id}", wait_until="networkidle")
         organizer.get_by_role("heading", name="Renovasi SD Harapan", level=1).wait_for(state="visible")
         assert_accessible(organizer)
         assert organizer.get_by_text("Rp 100.000.000", exact=False).is_visible()
         organizer.screenshot(path=str(SCREENSHOT_DIR / "campaign-detail-desktop.png"), full_page=True)
         campaign_url = organizer.url
         campaign_path = urlparse(campaign_url).path
-
-        organizer.get_by_label("Judul milestone").fill("Pembelian material")
-        organizer.get_by_label("Deskripsi milestone").fill("Material utama renovasi")
-        organizer.get_by_label("Anggaran milestone").fill("60000000.00")
-        organizer.get_by_role("button", name="Tambah milestone").click()
         organizer.get_by_text("PLANNED", exact=True).wait_for(state="visible")
         assert organizer.get_by_label("Ringkasan campaign").get_by_text("Rp 60.000.000", exact=False).is_visible()
 

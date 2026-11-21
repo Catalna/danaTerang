@@ -847,7 +847,7 @@ Contract
 
 Normal users should not need to understand these fields.
 
-The backend service wallet relays transactions and pays gas in Sepolia ETH. Assigned Verifiers connect organization-controlled wallets to sign peer votes; Organizers and Funders do not need one. Show the original raw-file hash only to authorized Verifiers; a public redacted derivative may display its separate hash when approved.
+The backend service wallet relays transactions and pays gas in Sepolia ETH. Assigned Verifiers connect organization-controlled wallets to sign peer votes; an authorized Organizer connects a wallet only to sign final campaign terms at H-48. Donors do not need wallets. Show the original raw-file hash only to authorized Verifiers; a public redacted derivative may display its separate hash when approved.
 
 ---
 
