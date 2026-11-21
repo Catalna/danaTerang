@@ -111,10 +111,24 @@ export default function DashboardPage() {
     ? Math.round((verifiedEvidenceCount / currentEvidence.length) * 100)
     : 0;
 
+  if (!userLoading && user && user.role !== "ORGANIZER") {
+    const roleHome: Record<string, string> = {
+      ADMIN: "/admin", FUNDER: "/funder", VERIFIER: "/verifier/reviews", BENEFICIARY: "/beneficiary",
+    };
+    return (
+      <AuthenticatedLayout title="Akses terbatas" subtitle="Halaman ini adalah ruang kerja Organizer.">
+        <section className="workspace-empty">
+          <h2>Gunakan ruang kerja sesuai peran Anda</h2>
+          <Link href={roleHome[user.role] ?? "/"}>Buka ruang kerja saya</Link>
+        </section>
+      </AuthenticatedLayout>
+    );
+  }
+
   return (
     <AuthenticatedLayout
-      title="Program Overview"
-      subtitle="Track funding accountability and verification progress."
+      title="Ringkasan Program"
+      subtitle="Kelola campaign, milestone, dan bukti serta pantau hasil verifikasi quorum untuk program yang Anda jalankan."
       badgeCount={{ evidence: needsReviewCount }}
       actions={
         <div className="dt-dash-header-actions">

@@ -37,6 +37,15 @@ function navItem(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/** Each role lands in its own workspace; public audit stays at the root. */
+function workspaceHome(role: string) {
+  if (role === "ADMIN") return "/admin";
+  if (role === "FUNDER") return "/funder";
+  if (role === "VERIFIER") return "/verifier/reviews";
+  if (role === "BENEFICIARY") return "/beneficiary";
+  return "/dashboard";
+}
+
 export default function AuthenticatedLayout({
   title,
   children,
@@ -104,6 +113,15 @@ export default function AuthenticatedLayout({
   const isFunder = user.role === "FUNDER";
   const isBeneficiary = user.role === "BENEFICIARY";
   const orgName = user.organization?.name || (isOrganizer ? "Yayasan Mitra" : user.name);
+  const homeHref = workspaceHome(user.role);
+  const labels = {
+    dashboard: isAdminUser ? "Ringkasan Sistem" : isFunder ? "Portofolio Pendanaan" : "Dashboard",
+    campaigns: isFunder ? "Program Saya" : "Campaign",
+    milestones: isFunder ? "Progres Milestone" : "Milestones",
+    paymentReports: isFunder ? "Laporan Pembayaran" : "Payment Reports",
+    auditTrail: isFunder ? "Jejak Audit" : "Audit Trail",
+    organizations: isFunder ? "Organisasi Mitra" : "Organizations",
+  };
 
   return (
     <WorkspaceUserContext.Provider value={user}>
@@ -122,7 +140,7 @@ export default function AuthenticatedLayout({
             </button>
             <Link
               className="mobile-brand-link"
-              href={isVerifier ? "/verifier/reviews" : "/campaigns"}
+              href={homeHref}
               aria-label="DanaTerang, halaman utama"
             >
               <Image
@@ -156,7 +174,7 @@ export default function AuthenticatedLayout({
           <div className="workspace-sidebar-header">
             <Link
               className="workspace-sidebar-brand"
-              href={isVerifier ? "/verifier/reviews" : "/dashboard"}
+              href={homeHref}
               aria-label="DanaTerang, halaman utama"
             >
               <div className="dt-logo-badge">
@@ -218,12 +236,12 @@ export default function AuthenticatedLayout({
               <>
                 <div className="nav-section-label">Program Utama</div>
                 <Link
-                  href="/dashboard"
-                  className={`workspace-nav-item ${navItem(pathname, "/dashboard") ? "workspace-nav-item--active" : ""}`}
-                  aria-current={navItem(pathname, "/dashboard") ? "page" : undefined}
+                  href={homeHref}
+                  className={`workspace-nav-item ${navItem(pathname, homeHref) ? "workspace-nav-item--active" : ""}`}
+                  aria-current={navItem(pathname, homeHref) ? "page" : undefined}
                 >
                   <LayoutDashboard size={18} className="nav-icon" aria-hidden="true" />
-                  <span className="nav-label">Dashboard</span>
+                  <span className="nav-label">{labels.dashboard}</span>
                 </Link>
 
                 <Link
@@ -232,7 +250,7 @@ export default function AuthenticatedLayout({
                   aria-current={navItem(pathname, "/campaigns") ? "page" : undefined}
                 >
                   <FolderKanban size={18} className="nav-icon" aria-hidden="true" />
-                  <span className="nav-label">Campaign</span>
+                  <span className="nav-label">{labels.campaigns}</span>
                 </Link>
 
                 <Link
@@ -241,7 +259,7 @@ export default function AuthenticatedLayout({
                   aria-current={navItem(pathname, "/milestones") ? "page" : undefined}
                 >
                   <ListChecks size={18} className="nav-icon" aria-hidden="true" />
-                  <span className="nav-label">Milestones</span>
+                  <span className="nav-label">{labels.milestones}</span>
                 </Link>
 
                 {/* Evidence link for Organizers and Admins */}
@@ -260,7 +278,7 @@ export default function AuthenticatedLayout({
                 )}
 
                 <div className="nav-divider" />
-                <div className="nav-section-label">Audit & Keuangan</div>
+                <div className="nav-section-label">{isFunder ? "Pendanaan & Audit" : "Audit & Keuangan"}</div>
 
                 <Link
                   href="/payment-reports"
@@ -268,7 +286,7 @@ export default function AuthenticatedLayout({
                   aria-current={navItem(pathname, "/payment-reports") ? "page" : undefined}
                 >
                   <Banknote size={18} className="nav-icon" aria-hidden="true" />
-                  <span className="nav-label">Payment Reports</span>
+                  <span className="nav-label">{labels.paymentReports}</span>
                 </Link>
 
                 <Link
@@ -277,7 +295,7 @@ export default function AuthenticatedLayout({
                   aria-current={navItem(pathname, "/reports") ? "page" : undefined}
                 >
                   <ScrollText size={18} className="nav-icon" aria-hidden="true" />
-                  <span className="nav-label">Audit Trail</span>
+                  <span className="nav-label">{labels.auditTrail}</span>
                 </Link>
 
                 <Link
@@ -286,7 +304,7 @@ export default function AuthenticatedLayout({
                   aria-current={navItem(pathname, "/organization") ? "page" : undefined}
                 >
                   <Building2 size={18} className="nav-icon" aria-hidden="true" />
-                  <span className="nav-label">Organizations</span>
+                  <span className="nav-label">{labels.organizations}</span>
                 </Link>
               </>
             )}
@@ -313,6 +331,25 @@ export default function AuthenticatedLayout({
                 >
                   <ScrollText size={18} className="nav-icon" aria-hidden="true" />
                   <span className="nav-label">Audit Trail</span>
+                </Link>
+              </>
+            )}
+
+            {/* Beneficiary Role Nav — confirmation features are post-MVP */}
+            {isBeneficiary && (
+              <>
+                <div className="nav-section-label">Portal Penerima</div>
+                <Link
+                  href="/beneficiary"
+                  className={`workspace-nav-item ${navItem(pathname, "/beneficiary") ? "workspace-nav-item--active" : ""}`}
+                  aria-current={navItem(pathname, "/beneficiary") ? "page" : undefined}
+                >
+                  <BadgeCheck size={18} className="nav-icon" aria-hidden="true" />
+                  <span className="nav-label">Status penerima</span>
+                </Link>
+                <Link href="/" className="workspace-nav-item">
+                  <Globe2 size={18} className="nav-icon" aria-hidden="true" />
+                  <span className="nav-label">Audit publik</span>
                 </Link>
               </>
             )}
@@ -354,6 +391,8 @@ export default function AuthenticatedLayout({
                     ? "CSR Manager / Donor Mitra"
                     : isVerifier
                     ? "Independent Peer Verifier"
+                    : isBeneficiary
+                    ? "Penerima Manfaat"
                     : "Administrator Sistem"}
                 </span>
               </div>
@@ -383,6 +422,8 @@ export default function AuthenticatedLayout({
                         ? "PORTAL VERIFIKASI PEER"
                         : isFunder
                         ? "PORTAL CSR & DONATUR"
+                        : isBeneficiary
+                        ? "PORTAL PENERIMA MANFAAT"
                         : "RUANG PROGRAM ORGANIZER"}
                     </span>
                   </div>

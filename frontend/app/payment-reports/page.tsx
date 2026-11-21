@@ -76,7 +76,12 @@ export default function PaymentReportsPage() {
   }
 
   return (
-    <AuthenticatedLayout title="Payment Reports" subtitle="Laporan pembayaran eksternal yang dicatat oleh Funder untuk milestone program.">
+    <AuthenticatedLayout
+      title={user?.role === "FUNDER" ? "Laporan Pembayaran Saya" : "Laporan Pembayaran Funder"}
+      subtitle={user?.role === "FUNDER"
+        ? "Catat pembayaran eksternal untuk milestone yang buktinya telah disetujui quorum."
+        : "Pantau laporan pembayaran eksternal yang dicatat Funder untuk milestone program Anda."}
+    >
       <div className="dt-notice-card" role="note">
         <div className="notice-icon" aria-hidden="true"><ShieldAlert size={20} /></div>
         <div className="notice-content"><strong>Dilaporkan oleh Funder</strong><p>Transfer aktual berlangsung di luar DanaTerang. Laporan ini bukan konfirmasi independen bahwa transfer telah diterima. Referensi dan catatan pembayaran bersifat privat dan tidak dimasukkan ke proof blockchain atau audit publik.</p></div>

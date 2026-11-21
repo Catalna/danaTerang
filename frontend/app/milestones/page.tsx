@@ -70,8 +70,10 @@ export default function MilestonesPage() {
 
   return (
     <AuthenticatedLayout
-      title="Tahapan & Milestone"
-      subtitle="Pantau progres realisasi dana dan tahapan kegiatan seluruh program Anda."
+      title={user?.role === "FUNDER" ? "Progres Milestone" : "Tahapan & Milestone"}
+      subtitle={user?.role === "FUNDER"
+        ? "Pantau tahapan kegiatan dan realisasi dana pada program yang Anda danai."
+        : "Pantau progres realisasi dana dan tahapan kegiatan seluruh program Anda."}
       actions={
         user?.role === "ORGANIZER" ? (
           <Link className="action-button action-button--primary" href="/campaigns">

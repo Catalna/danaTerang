@@ -43,10 +43,11 @@ export default function LoginPage() {
       });
       const requestedPath = new URLSearchParams(window.location.search).get("next");
       const roleDefaults: Record<string, string> = {
-        ADMIN: "/admin/reviews",
+        ADMIN: "/admin",
         ORGANIZER: "/dashboard",
-        FUNDER: "/dashboard",
+        FUNDER: "/funder",
         VERIFIER: "/verifier/reviews",
+        BENEFICIARY: "/beneficiary",
       };
       const defaultPath = roleDefaults[response.user.role] ?? "/campaigns";
       const nextPath = requestedPath?.startsWith("/") && !requestedPath.startsWith("//") ? requestedPath : defaultPath;

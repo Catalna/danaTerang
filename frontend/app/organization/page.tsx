@@ -41,8 +41,10 @@ export default function OrganizationPage() {
 
   return (
     <AuthenticatedLayout
-      title="Profil Organisasi"
-      subtitle="Kelola identitas lembaga, penanggung jawab program, dan rekening penyaluran dana."
+      title={user?.role === "FUNDER" ? "Profil Organisasi Pendana" : "Profil Organisasi"}
+      subtitle={user?.role === "FUNDER"
+        ? "Identitas lembaga Anda sebagai Funder dan status verifikasi yang ditetapkan Admin."
+        : "Kelola identitas lembaga, penanggung jawab program, dan rekening penyaluran dana."}
     >
       <div className="organization-page-shell">
         {/* Org Banner Card */}

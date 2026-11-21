@@ -217,6 +217,7 @@ export default function CampaignDetailPage() {
         method: "POST",
         body: JSON.stringify({ signature, walletAddress: address }),
       });
+      await load(true);
     } catch (cause) {
       if (cause instanceof ApiError && cause.status === 503 && cause.code === "funding_disabled") {
         setActionError("Pencatatan pendanaan di blockchain belum dikonfigurasi di server. Hubungi Admin.");

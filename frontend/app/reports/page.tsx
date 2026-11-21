@@ -74,8 +74,10 @@ export default function ReportsPage() {
 
   return (
     <AuthenticatedLayout
-      title="Laporan Transparansi & Akuntabilitas"
-      subtitle="Ringkasan integritas penyaluran dana CSR dan kepatuhan audit publik organisasi."
+      title={user?.role === "FUNDER" ? "Jejak Audit Pendanaan" : user?.role === "ADMIN" ? "Jejak Audit Sistem" : "Laporan Transparansi Program"}
+      subtitle={user?.role === "FUNDER"
+        ? "Status program yang Anda danai, progres milestone, dan bukti proof on-chain."
+        : "Ringkasan integritas bukti, keputusan quorum, dan penyaluran dana program Anda."}
       actions={
         <div className="workspace-actions">
           <button

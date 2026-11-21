@@ -85,8 +85,10 @@ export default function CampaignListPage() {
 
   return (
     <AuthenticatedLayout
-      title="Campaign saya"
-      subtitle="Kelola program bantuan sosial, pantau realisasi dana, dan publikasikan bukti penyaluran."
+      title={user?.role === "FUNDER" ? "Program yang saya danai" : "Campaign saya"}
+      subtitle={user?.role === "FUNDER"
+        ? "Pantau campaign yang tertaut ke akun Anda dan status pendanaannya."
+        : "Kelola program bantuan sosial, pantau realisasi dana, dan publikasikan bukti penyaluran."}
       actions={
         user?.role === "ORGANIZER" ? (
           <Link className="action-button action-button--primary" href="/campaigns/new">
