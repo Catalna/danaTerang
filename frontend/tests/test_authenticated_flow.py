@@ -275,6 +275,9 @@ def main():
         funder_context = browser.new_context(viewport={"width": 1440, "height": 900})
         funder = funder_context.new_page()
         funder.on("response", lambda response: print(f"[FUNDER HTTP] {response.status} {response.request.method} {response.url}") if "/api/" in response.url else None)
+        funder.on("requestfailed", lambda req: print(f"[FUNDER REQFAILED] {req.method} {req.url} {req.failure}"))
+        funder.on("console", lambda message: print(f"[FUNDER CONSOLE] {message.type}: {message.text}"))
+        funder.on("pageerror", lambda error: print(f"[FUNDER PAGEERROR] {error}"))
         funder.on("console", lambda message: print(f"[FUNDER CONSOLE] {message.type}: {message.text}"))
         funder.on("pageerror", lambda error: print(f"[FUNDER PAGEERROR] {error}"))
 
@@ -284,7 +287,7 @@ def main():
         funder.goto(f"{BASE_URL}{campaign_path}", wait_until="networkidle")
         assert_accessible(funder)
         funder.get_by_role("button", name="Hubungkan Wallet").click()
-        funder.get_by_text("0x5CbDd8", exact=False).wait_for(state="visible")
+        funder.get_by_text("0x5CbD", exact=False).wait_for(state="visible")
         funder.get_by_role("button", name="Danai campaign").click()
         funder.wait_for_timeout(8000)
         funder.get_by_text("Didanai", exact=True).wait_for(state="visible")
