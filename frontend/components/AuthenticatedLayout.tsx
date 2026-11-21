@@ -375,7 +375,6 @@ export default function AuthenticatedLayout({
               <div className="subheader-title-row">
                 <div className="subheader-text">
                   <div className="subheader-eyebrow-row">
-                    <span className="dt-module-tag">REAL-TIME CSR ACCOUNTABILITY MODULE v2.0</span>
                     <span className="dt-role-eyebrow">
                       {isAdminUser
                         ? "OPERASI SISTEM & AUDIT"
@@ -392,15 +391,7 @@ export default function AuthenticatedLayout({
                   </p>
                 </div>
 
-                <div className="subheader-actions">
-                  {actions}
-
-                  {isOrganizer && pathname !== "/campaigns/new" && !actions && (
-                    <Link className="action-button action-button--primary" href="/campaigns/new">
-                      + Buat campaign
-                    </Link>
-                  )}
-                </div>
+                {actions ? <div className="subheader-actions">{actions}</div> : null}
               </div>
 
               {/* Dashed line matching reference image under title */}

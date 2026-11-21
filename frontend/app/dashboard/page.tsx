@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
-  Plus,
   FolderKanban,
   CheckCircle2,
   AlertTriangle,
   AlertCircle,
   Calendar,
+  ChevronDown,
   Filter,
 } from "lucide-react";
 
@@ -21,9 +21,10 @@ import { useCurrentUser } from "../../lib/useCurrentUser";
 type Campaign = CampaignSummary;
 type Milestone = MilestoneSummary;
 type Evidence = EvidenceSummary;
+const DASHBOARD_YEARS = Array.from({ length: 2026 - 1945 + 1 }, (_, index) => 2026 - index);
 
 export default function DashboardPage() {
-  const { user, loading: userLoading } = useCurrentUser();
+  const { loading: userLoading } = useCurrentUser();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [evidenceList, setEvidenceList] = useState<Evidence[]>([]);
@@ -66,7 +67,7 @@ export default function DashboardPage() {
 
   const visibleCampaigns = campaigns.filter((campaign) =>
     (campaignStatus === "ALL" || campaign.status === campaignStatus)
-    && (period === "ALL" || campaign.createdAt?.slice(0, 4) === String(new Date().getFullYear())),
+    && (period === "ALL" || campaign.createdAt?.slice(0, 4) === period),
   );
   const campaignIds = new Set(visibleCampaigns.map((campaign) => campaign.id));
   const visibleMilestones = milestones.filter((milestone) => campaignIds.has(milestone.campaignId));
@@ -121,9 +122,12 @@ export default function DashboardPage() {
           <div className="dt-dash-btn-group">
             <label className="action-button action-button--secondary dt-timeframe-btn">
               <Calendar size={14} aria-hidden="true" />
+              <span className="dt-timeframe-label" aria-hidden="true">Tahun</span>
               <select aria-label="Periode campaign" value={period} onChange={(event) => setPeriod(event.target.value)}>
-                <option value="ALL">Semua tahun</option><option value="CURRENT">Tahun ini</option>
+                <option value="ALL">Semua tahun</option>
+                {DASHBOARD_YEARS.map((year) => <option key={year} value={String(year)}>{year}</option>)}
               </select>
+              <ChevronDown size={14} aria-hidden="true" className="dt-year-chevron" />
             </label>
             <label className="action-button action-button--secondary dt-filter-icon-btn">
               <Filter size={14} aria-hidden="true" />
@@ -132,12 +136,6 @@ export default function DashboardPage() {
               </select>
             </label>
           </div>
-          {user?.role === "ORGANIZER" && (
-            <Link className="action-button action-button--primary" href="/campaigns/new">
-              <Plus size={16} aria-hidden="true" />
-              <span>Buat campaign</span>
-            </Link>
-          )}
         </div>
       }
     >

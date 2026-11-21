@@ -27,6 +27,7 @@ SCREENSHOT_DIR = Path(gettempdir()) / "dana-terang-playwright"
 
 
 def assert_accessible(page):
+    assert "V2.0" not in page.locator("body").inner_text().upper()
     if page.evaluate("typeof axe === 'undefined'"):
         page.add_script_tag(path=str(AXE_PATH))
     violations = page.evaluate("async () => (await axe.run()).violations")
@@ -238,8 +239,10 @@ def main():
         organizer.get_by_role("heading", name="Campaign saya").wait_for(state="visible")
         assert_accessible(organizer)
         organizer.get_by_role("heading", name="Belum ada campaign").wait_for(state="visible")
+        assert organizer.locator(".subheader-actions").count() == 0
+        assert organizer.get_by_role("link", name="Buat campaign", exact=True).count() == 1
         organizer.screenshot(path=str(SCREENSHOT_DIR / "campaigns-empty-desktop.png"), full_page=True)
-        organizer.get_by_role("link", name="Buat campaign").last.click()
+        organizer.get_by_role("link", name="Buat campaign", exact=True).click()
         organizer.get_by_role("heading", name="Buat campaign").wait_for(state="visible")
         assert_accessible(organizer)
         organizer.screenshot(path=str(SCREENSHOT_DIR / "campaign-create-desktop.png"), full_page=True)
@@ -262,6 +265,53 @@ def main():
         organizer.get_by_role("button", name="Tambah milestone").click()
         organizer.get_by_text("PLANNED", exact=True).wait_for(state="visible")
         assert organizer.get_by_label("Ringkasan campaign").get_by_text("Rp 60.000.000", exact=False).is_visible()
+
+        organizer.goto(f"{BASE_URL}/dashboard", wait_until="networkidle")
+        assert organizer.locator(".subheader-actions").get_by_role("link", name="Buat campaign").count() == 0
+        period_select = organizer.get_by_label("Periode campaign")
+        assert period_select.locator("option").evaluate_all("options => options.map(option => option.value)") == ["ALL", *[str(year) for year in range(2026, 1944, -1)]]
+        organizer.screenshot(path=str(SCREENSHOT_DIR / "dashboard-year-picker-desktop.png"), full_page=True)
+        period_select.select_option("1945")
+        assert organizer.locator(".dt-big-budget-num").inner_text().strip() == "Rp 0"
+        period_select.select_option("2026")
+        assert "100.000.000" in organizer.locator(".dt-big-budget-num").inner_text()
+        organizer.set_viewport_size({"width": 390, "height": 844})
+        assert_no_horizontal_overflow(organizer)
+        organizer.screenshot(path=str(SCREENSHOT_DIR / "dashboard-year-picker-mobile.png"), full_page=True)
+        organizer.set_viewport_size({"width": 1440, "height": 900})
+
+        organizer.goto(f"{BASE_URL}/reports", wait_until="networkidle")
+        score_circle = organizer.locator(".transparency-score-box")
+        score_circle.wait_for(state="visible")
+        score_bounds = score_circle.bounding_box()
+        score_value = organizer.locator(".score-ring-val").bounding_box()
+        score_label = organizer.locator(".score-ring-label").bounding_box()
+        assert score_bounds["width"] >= 180 and abs(score_bounds["width"] - score_bounds["height"]) <= 1, score_bounds
+        assert abs((score_value["x"] + score_value["width"] / 2) - (score_bounds["x"] + score_bounds["width"] / 2)) <= 2, (score_value, score_bounds)
+        assert abs((score_label["x"] + score_label["width"] / 2) - (score_bounds["x"] + score_bounds["width"] / 2)) <= 2, (score_label, score_bounds)
+        organizer.screenshot(path=str(SCREENSHOT_DIR / "reports-score-desktop.png"), full_page=True)
+        organizer.set_viewport_size({"width": 390, "height": 844})
+        assert_no_horizontal_overflow(organizer)
+        mobile_score = organizer.locator(".transparency-score-box").bounding_box()
+        assert mobile_score["width"] >= 180 and abs(mobile_score["width"] - mobile_score["height"]) <= 1, mobile_score
+        organizer.screenshot(path=str(SCREENSHOT_DIR / "reports-score-mobile.png"), full_page=True)
+        organizer.set_viewport_size({"width": 1440, "height": 900})
+
+        organizer.goto(f"{BASE_URL}/organization", wait_until="networkidle")
+        main_panels = organizer.locator(".dashboard-main-col > .workspace-panel")
+        side_panels = organizer.locator(".dashboard-side-col > .workspace-panel")
+        assert main_panels.count() == 2 and side_panels.count() == 2
+        for row in range(2):
+            left_top = main_panels.nth(row).bounding_box()["y"]
+            right_top = side_panels.nth(row).bounding_box()["y"]
+            assert abs(left_top - right_top) <= 1, {"row": row, "left": left_top, "right": right_top}
+        organizer.screenshot(path=str(SCREENSHOT_DIR / "organization-aligned-desktop.png"), full_page=True)
+        organizer.set_viewport_size({"width": 390, "height": 844})
+        assert_no_horizontal_overflow(organizer)
+        organizer.screenshot(path=str(SCREENSHOT_DIR / "organization-aligned-mobile.png"), full_page=True)
+        organizer.set_viewport_size({"width": 1440, "height": 900})
+
+        organizer.goto(f"{BASE_URL}/campaigns", wait_until="networkidle")
 
         milestones_url = f"**/api/campaigns/{campaign_path.rsplit('/', 1)[-1]}/milestones"
         organizer.route(milestones_url, lambda route: route.fulfill(status=503, json={"error": "unavailable"}))

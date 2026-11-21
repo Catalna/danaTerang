@@ -80,7 +80,7 @@ export default function OrganizationPage() {
           {/* Left Column: Organization & PIC Details */}
           <div className="dashboard-main-col">
             {/* Lembaga Info */}
-            <section className="workspace-panel" aria-labelledby="org-info-heading">
+            <section className="workspace-panel org-info-panel" aria-labelledby="org-info-heading">
               <div className="workspace-title-row">
                 <div>
                   <p className="eyebrow">DATA ENTITAS</p>
@@ -123,7 +123,7 @@ export default function OrganizationPage() {
             </section>
 
             {/* PIC Info */}
-            <section className="workspace-panel" aria-labelledby="pic-heading">
+            <section className="workspace-panel org-pic-panel" aria-labelledby="pic-heading">
               <div className="workspace-title-row">
                 <div>
                   <p className="eyebrow">PENANGGUNG JAWAB</p>
@@ -157,7 +157,7 @@ export default function OrganizationPage() {
           {/* Right Column: Bank Account & Compliance */}
           <div className="dashboard-side-col">
             {/* Bank Disbursement */}
-            <section className="workspace-panel side-panel" aria-labelledby="bank-disbursement-heading">
+            <section className="workspace-panel side-panel org-bank-panel" aria-labelledby="bank-disbursement-heading">
               <div className="side-panel-header">
                 <div className="side-panel-icon" aria-hidden="true">
                   <Lock size={18} />
@@ -198,7 +198,7 @@ export default function OrganizationPage() {
             </section>
 
             {/* Security Notice */}
-            <section className="workspace-panel side-panel" aria-labelledby="sec-notice-heading">
+            <section className="workspace-panel side-panel org-security-panel" aria-labelledby="sec-notice-heading">
               <div className="side-panel-header">
                 <div className="side-panel-icon side-panel-icon--lime" aria-hidden="true">
                   <Lock size={18} />

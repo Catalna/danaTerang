@@ -87,14 +87,6 @@ export default function CampaignListPage() {
     <AuthenticatedLayout
       title="Campaign saya"
       subtitle="Kelola program bantuan sosial, pantau realisasi dana, dan publikasikan bukti penyaluran."
-      actions={
-        user?.role === "ORGANIZER" ? (
-          <Link className="action-button action-button--primary" href="/campaigns/new">
-            <Plus size={16} aria-hidden="true" />
-            <span>Buat campaign</span>
-          </Link>
-        ) : undefined
-      }
     >
       {(loading || userLoading) && (
         <div className="workspace-loading" aria-busy="true">

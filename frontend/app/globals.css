@@ -3314,6 +3314,39 @@ progress::-moz-progress-bar { background: var(--lime-400); }
   background: #F8FAFC;
 }
 
+.dt-timeframe-btn {
+  position: relative;
+  padding-right: 38px;
+}
+
+.dt-timeframe-label {
+  color: var(--ink-2);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.dt-timeframe-btn select {
+  appearance: none;
+  min-width: 7.25rem;
+  border: 0;
+  padding: 0 2px 0 0;
+  background: transparent;
+  color: var(--navy-950);
+  font: 800 12px var(--font-display);
+  cursor: pointer;
+}
+
+.dt-timeframe-btn select:focus-visible {
+  outline: 2px solid var(--teal-700);
+  outline-offset: 3px;
+}
+
+.dt-year-chevron {
+  position: absolute;
+  right: 12px;
+  pointer-events: none;
+}
+
 .dt-dashboard-grid {
   display: flex;
   flex-direction: column;
@@ -4827,23 +4860,18 @@ progress::-moz-progress-bar { background: var(--lime-400); }
 .dashboard-grid-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 22rem;
+  grid-template-areas: "entity bank" "contact security";
   gap: var(--space-l);
-  align-items: start;
+  align-items: stretch;
 }
 
-.dashboard-main-col {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-l);
-  min-width: 0;
-}
-
-.dashboard-side-col {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-l);
-  min-width: 0;
-}
+.dashboard-main-col,
+.dashboard-side-col { display: contents; }
+.org-info-panel { grid-area: entity; }
+.org-pic-panel { grid-area: contact; }
+.org-bank-panel { grid-area: bank; }
+.org-security-panel { grid-area: security; }
+.organization-page-shell .dashboard-grid-layout .workspace-panel { min-width: 0; margin: 0; }
 
 .panel-heading {
   margin: 0;
@@ -5689,15 +5717,26 @@ progress::-moz-progress-bar { background: var(--lime-400); }
   border: 1.5px solid var(--lime-300);
 }
 
-.transparency-score-box {
-  width: 9.5rem;
-  height: 9.5rem;
-  border-radius: 50%;
-  border: 5px solid var(--lime-300);
+.executive-card-right {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
+  min-width: 12rem;
+}
+
+.transparency-score-box {
+  width: min(12rem, 100%);
+  aspect-ratio: 1;
+  height: auto;
+  flex: 0 0 auto;
+  padding: var(--space-s);
+  border-radius: 50%;
+  border: 4px solid var(--lime-300);
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-2xs);
   box-shadow: 3px 3px 0px var(--navy-950), 0 0 25px rgba(221, 247, 138, 0.25);
   background: rgba(16, 26, 43, 0.7);
 }
@@ -5707,14 +5746,19 @@ progress::-moz-progress-bar { background: var(--lime-400); }
   font-weight: 800;
   color: var(--lime-400);
   line-height: 1;
+  text-align: center;
 }
 
 .score-ring-label {
-  font-size: 0.6875rem;
+  display: block;
+  max-width: 8.5rem;
+  font-size: 0.75rem;
   color: #ffffff;
   text-transform: uppercase;
-  margin-top: 0.25rem;
-  font-weight: 600;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  text-wrap: balance;
 }
 
 /* Organization Header Card */
@@ -6075,7 +6119,10 @@ progress::-moz-progress-bar { background: var(--lime-400); }
   .hero-panel { grid-template-columns: minmax(0, 1fr); }
   .state-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dashboard-stats-grid { grid-template-columns: repeat(2, 1fr); }
-  .dashboard-grid-layout { grid-template-columns: 1fr; }
+  .dashboard-grid-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "entity" "contact" "bank" "security";
+  }
   .workspace-topbar { padding: var(--space-s) var(--space-m); }
   .workspace-main { padding: var(--space-l) var(--space-m); }
 }
@@ -6125,6 +6172,35 @@ progress::-moz-progress-bar { background: var(--lime-400); }
   .dashboard-welcome-card { grid-template-columns: 1fr; padding: var(--space-m); }
   .welcome-meta { border-left: none; padding-left: 0; border-top: 1px solid var(--overlay-line); padding-top: var(--space-s); }
   .dashboard-stats-grid { grid-template-columns: 1fr; }
+  .dt-two-col-grid { grid-template-columns: minmax(0, 1fr); }
+  .subheader-actions,
+  .dt-dash-header-actions,
+  .dt-dash-btn-group { width: 100%; min-width: 0; }
+  .dt-dash-btn-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2xs);
+  }
+  .dt-dash-btn-group > .action-button {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    gap: var(--space-3xs);
+    padding-inline: var(--space-2xs);
+    font-size: 10px;
+  }
+  .dt-timeframe-btn { padding-right: 26px !important; }
+  .dt-timeframe-label { font-size: 10px; }
+  .dt-dash-btn-group select {
+    flex: 1 1 0;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 10px;
+  }
+  .dt-year-chevron { right: 7px; }
   .campaign-cards-grid { grid-template-columns: 1fr; }
   .milestones-card-grid { grid-template-columns: 1fr; }
   .evidence-grid-cards { grid-template-columns: 1fr; }
