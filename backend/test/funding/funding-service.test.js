@@ -156,6 +156,61 @@ test("activation fails closed without a registry contract", async () => {
   );
 });
 
+test("only the bound Organizer wallet signs and locks the final campaign terms at H-48", async () => {
+  const organizer = new Wallet(`0x${"9".repeat(64)}`);
+  const campaignTerms = {
+    campaignId: CAMPAIGN_ID,
+    organizerOrganizationId: ORG_ID,
+    organizerUserId: "7b6f8e20-9c1a-4c1e-8e2b-3f5a6b7c8d90",
+    closeAt: new Date(FIXED_NOW.getTime() + 24 * 60 * 60 * 1000),
+    revisionId: "8b6f8e20-9c1a-4c1e-8e2b-3f5a6b7c8d90",
+    version: 2,
+    termsCommitment: `0x${"d4".repeat(32)}`,
+    snapshot: { title: "Disaster relief", targetAmount: "50000000.00" },
+    alreadyLocked: false,
+  };
+  let recorded = null;
+  const repository = {
+    async getWalletAddress(userId) { return userId === campaignTerms.organizerUserId ? organizer.address : null; },
+    async getFundingSource() { return sourceFixture(); },
+    async getFundingByCampaign() { return null; },
+    async getCampaignTermsForOrganizer({ actor }) {
+      if (actor.id !== campaignTerms.organizerUserId) throw Object.assign(new Error("FORBIDDEN"), { code: "FORBIDDEN" });
+      return campaignTerms;
+    },
+    async recordCampaignTermsLock(input) { recorded = input; return { campaign: { id: CAMPAIGN_ID, fundraisingStatus: "LOCKED" }, alreadyLocked: false }; },
+  };
+  const contractCalls = [];
+  const contract = {
+    async lockCampaignTerms(...args) {
+      contractCalls.push(args);
+      return { hash: TX_HASH, async wait() { return { status: 1, blockNumber: 5001 }; } };
+    },
+  };
+  const service = createFundingService({
+    repository,
+    campaignRepository: repository,
+    walletLookup: (userId) => repository.getWalletAddress(userId),
+    contract,
+    chainId: 11155111,
+    contractAddress: `0x${"c".repeat(40)}`,
+    now: () => FIXED_NOW,
+  });
+  const actor = { id: campaignTerms.organizerUserId, role: "ORGANIZER", organizationId: ORG_ID };
+  const prepared = await service.prepareCampaignTerms({ actor, campaignId: CAMPAIGN_ID });
+  assert.equal(prepared.typedData.message.organizer, organizer.address);
+  assert.equal(prepared.typedData.message.version, 2);
+  const { EIP712Domain, ...signTypes } = prepared.typedData.types;
+  const signature = await organizer.signTypedData(prepared.typedData.domain, signTypes, prepared.typedData.message);
+  const result = await service.lockCampaignTerms({ actor, campaignId: CAMPAIGN_ID, walletAddress: organizer.address, signature });
+  assert.equal(result.campaign.fundraisingStatus, "LOCKED");
+  assert.equal(contractCalls.length, 1);
+  assert.equal(recorded.walletAddress, organizer.address.toLowerCase());
+  assert.equal(recorded.transactionHash, TX_HASH);
+
+  await assert.rejects(service.prepareCampaignTerms({ actor: { ...actor, role: "ADMIN" }, campaignId: CAMPAIGN_ID }), { code: "FORBIDDEN" });
+});
+
 test("buildContentCommitment rejects a missing campaign source", () => {
   assert.throws(() => buildContentCommitment(null), { code: "FUNDING_SOURCE_INVALID" });
 });

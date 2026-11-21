@@ -32,6 +32,16 @@ const AMENDMENT_TYPES = {
   ],
 };
 
+const CAMPAIGN_TERMS_TYPES = {
+  CampaignTerms: [
+    { name: "campaignId", type: "bytes32" },
+    { name: "contentCommitment", type: "bytes32" },
+    { name: "organizer", type: "address" },
+    { name: "closesAt", type: "uint64" },
+    { name: "version", type: "uint256" },
+  ],
+};
+
 function resolveImport(sourceName) {
   const filePath = sourceName.startsWith("@openzeppelin/")
     ? resolve(REPOSITORY_ROOT, "node_modules", sourceName)
@@ -79,6 +89,7 @@ export async function compileAndDeployRegistry() {
   const funder = wallets[0];
   const otherFunder = wallets[1];
   const outsider = wallets[2];
+  const organizer = wallets[3];
   const iface = new Interface(artifact.abi);
 
   async function sendTransaction(wallet, to, data) {
@@ -130,6 +141,7 @@ export async function compileAndDeployRegistry() {
       domain,
       fundingTypes: FUNDING_TYPES,
       amendmentTypes: AMENDMENT_TYPES,
+      campaignTermsTypes: CAMPAIGN_TERMS_TYPES,
       async fundCampaign(message, signature, sender = outsider) {
         const calldata = iface.encodeFunctionData("fundCampaign", [message.campaignId, message.contentCommitment, message.funder, signature]);
         if (process.env.DEBUG_CALLDATA) {
@@ -141,9 +153,18 @@ export async function compileAndDeployRegistry() {
       async amendCampaignFunding(campaignId, newContentCommitment, expectedVersion, signature, sender = outsider) {
         return sendTransaction(sender, address, iface.encodeFunctionData("amendCampaignFunding", [campaignId, newContentCommitment, expectedVersion, signature]));
       },
+      async lockCampaignTerms(message, signature, sender = outsider) {
+        return sendTransaction(sender, address, iface.encodeFunctionData("lockCampaignTerms", [
+          message.campaignId, message.contentCommitment, message.organizer, message.closesAt, message.version, signature,
+        ]));
+      },
       async getFunding(...args) {
         const result = await readContract(address, "getFunding", args);
         return { contentCommitment: result[0], funder: result[1], version: Number(result[2]), fundedAt: result[3] };
+      },
+      async getCampaignTerms(...args) {
+        const result = await readContract(address, "getCampaignTerms", args);
+        return { contentCommitment: result[0], organizer: result[1], closesAt: Number(result[2]), version: Number(result[3]), lockedAt: Number(result[4]) };
       },
     };
   }
@@ -160,6 +181,14 @@ export async function compileAndDeployRegistry() {
     return wallet.signTypedData(contract.domain, AMENDMENT_TYPES, message);
   }
 
+  function campaignTermsMessage({ campaignId, contentCommitment, organizer, closesAt, version = 1 }) {
+    return { campaignId, contentCommitment, organizer, closesAt, version };
+  }
+
+  async function signCampaignTerms(wallet, contract, message) {
+    return wallet.signTypedData(contract.domain, CAMPAIGN_TERMS_TYPES, message);
+  }
+
   const deployment = await deploy();
   return {
     vm,
@@ -169,9 +198,12 @@ export async function compileAndDeployRegistry() {
     funder,
     otherFunder,
     outsider,
+    organizer,
     fundingMessage,
     signFunding,
     signAmendment,
+    campaignTermsMessage,
+    signCampaignTerms,
     async close() {},
   };
 }

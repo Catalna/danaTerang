@@ -11,6 +11,15 @@ const FUNDING_TYPES = {
     { name: "version", type: "uint256" },
   ],
 };
+const CAMPAIGN_TERMS_TYPES = {
+  CampaignTerms: [
+    { name: "campaignId", type: "bytes32" },
+    { name: "contentCommitment", type: "bytes32" },
+    { name: "organizer", type: "address" },
+    { name: "closesAt", type: "uint64" },
+    { name: "version", type: "uint256" },
+  ],
+};
 
 const WALLET_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const EIP712_SIGNATURE = /^0x[0-9a-fA-F]{130}$/; // 65-byte signature = 130 hex chars + 0x
@@ -184,5 +193,150 @@ export function createFundingService({ repository, campaignRepository, walletLoo
     return { campaign, funding: record };
   }
 
-  return Object.freeze({ prepareFunding, activateWithSignature });
+  async function findCampaignTermsOnChain(message) {
+    if (typeof contract?.getCampaignTerms !== "function") return null;
+    let record;
+    try {
+      record = await contract.getCampaignTerms(message.campaignId);
+    } catch {
+      return null;
+    }
+    const recordCommitment = String(record.contentCommitment ?? record[0] ?? "").toLowerCase();
+    const recordOrganizer = String(record.organizer ?? record[1] ?? "").toLowerCase();
+    const recordClosesAt = Number(record.closesAt ?? record[2] ?? 0);
+    const recordVersion = Number(record.version ?? record[3] ?? 0);
+    if (!recordOrganizer || /^0x0+$/.test(recordOrganizer)) return null;
+    if (recordCommitment !== message.contentCommitment.toLowerCase()
+        || recordOrganizer !== message.organizer.toLowerCase()
+        || recordClosesAt !== Number(message.closesAt)
+        || recordVersion !== Number(message.version)) {
+      throw fundingError("CAMPAIGN_TERMS_CHAIN_CONFLICT");
+    }
+    let transactionHash = null;
+    try {
+      const filter = contract.filters?.CampaignTermsLocked?.(message.campaignId);
+      if (filter && typeof contract.queryFilter === "function") {
+        const events = await contract.queryFilter(filter);
+        const event = [...events].reverse().find((item) =>
+          String(item.args?.contentCommitment ?? item.args?.[2] ?? "").toLowerCase() === message.contentCommitment.toLowerCase()
+          && Number(item.args?.version ?? item.args?.[4] ?? 0) === Number(message.version));
+        if (typeof event?.transactionHash === "string" && /^0x[0-9a-fA-F]{64}$/.test(event.transactionHash)) {
+          transactionHash = event.transactionHash.toLowerCase();
+        }
+      }
+    } catch {
+      // Event indexing can be temporarily unavailable; never send a duplicate transaction.
+    }
+    return { transactionHash };
+  }
+
+  async function prepareCampaignTerms({ actor, campaignId, now = clock() } = {}) {
+    if (actor?.role !== "ORGANIZER") throw fundingError("FORBIDDEN");
+    if (!contract || !chainId || !contractAddress) throw fundingError("CAMPAIGN_TERMS_DISABLED");
+    const source = await campaignRepository.getCampaignTermsForOrganizer({ actor, campaignId, now });
+    if (source.alreadyLocked) return { alreadyLocked: true, termsCommitment: source.termsCommitment, version: source.version };
+    const organizerWallet = await walletLookup(actor.id);
+    if (!organizerWallet || !WALLET_ADDRESS.test(organizerWallet)) throw fundingError("CAMPAIGN_SIGNER_WALLET_NOT_BOUND");
+    const closesAt = Math.floor(new Date(source.closeAt).getTime() / 1000);
+    const message = {
+      campaignId: campaignIdOnChain(campaignId),
+      contentCommitment: source.termsCommitment,
+      organizer: organizerWallet,
+      closesAt,
+      version: Number(source.version),
+    };
+    const termsDomain = { name: FUNDING_DOMAIN.name, version: FUNDING_DOMAIN.version, chainId, verifyingContract: contractAddress };
+    return {
+      alreadyLocked: false,
+      termsCommitment: source.termsCommitment,
+      walletAddress: organizerWallet,
+      snapshot: source.snapshot,
+      typedData: {
+        domain: termsDomain,
+        types: {
+          EIP712Domain: [
+            { name: "name", type: "string" },
+            { name: "version", type: "string" },
+            { name: "chainId", type: "uint256" },
+            { name: "verifyingContract", type: "address" },
+          ],
+          CampaignTerms: CAMPAIGN_TERMS_TYPES.CampaignTerms,
+        },
+        primaryType: "CampaignTerms",
+        message,
+      },
+    };
+  }
+
+  async function lockCampaignTerms({ actor, campaignId, signature, walletAddress, now = clock() } = {}) {
+    if (actor?.role !== "ORGANIZER") throw fundingError("FORBIDDEN");
+    if (!EIP712_SIGNATURE.test(signature ?? "") || !WALLET_ADDRESS.test(walletAddress ?? "")) {
+      throw fundingError("INVALID_CAMPAIGN_TERMS_SIGNATURE");
+    }
+    if (!contract || !chainId || !contractAddress) throw fundingError("CAMPAIGN_TERMS_DISABLED");
+    const boundWallet = await walletLookup(actor.id);
+    if (!boundWallet || !WALLET_ADDRESS.test(boundWallet)) throw fundingError("CAMPAIGN_SIGNER_WALLET_NOT_BOUND");
+    if (walletAddress.toLowerCase() !== boundWallet.toLowerCase()) throw fundingError("CAMPAIGN_SIGNER_WALLET_MISMATCH");
+    const source = await campaignRepository.getCampaignTermsForOrganizer({ actor, campaignId, now });
+    if (source.alreadyLocked) return { campaignId, termsCommitment: source.termsCommitment, alreadyLocked: true };
+
+    const closesAt = Math.floor(new Date(source.closeAt).getTime() / 1000);
+    const message = {
+      campaignId: campaignIdOnChain(campaignId),
+      contentCommitment: source.termsCommitment,
+      organizer: boundWallet,
+      closesAt,
+      version: Number(source.version),
+    };
+    const domain = { ...FUNDING_DOMAIN, chainId, verifyingContract: contractAddress };
+    let signer;
+    try {
+      signer = verifyTypedData(domain, CAMPAIGN_TERMS_TYPES, message, signature);
+    } catch {
+      throw fundingError("INVALID_CAMPAIGN_TERMS_SIGNATURE");
+    }
+    if (signer.toLowerCase() !== boundWallet.toLowerCase()) throw fundingError("INVALID_CAMPAIGN_TERMS_SIGNATURE");
+
+    const existingOnChain = await findCampaignTermsOnChain(message);
+    let transactionHash = existingOnChain?.transactionHash ?? null;
+    if (!existingOnChain) {
+      let transaction;
+      try {
+        transaction = await contract.lockCampaignTerms(
+          message.campaignId,
+          message.contentCommitment,
+          message.organizer,
+          message.closesAt,
+          message.version,
+          signature,
+        );
+      } catch (error) {
+        throw fundingError(String(error?.message ?? "").includes("EXPECT_CAMPAIGN_TERMS_WINDOW")
+          ? "CAMPAIGN_TERMS_WINDOW_CLOSED"
+          : "CAMPAIGN_TERMS_ANCHOR_FAILED");
+      }
+      transactionHash = typeof transaction?.hash === "string" && /^0x[0-9a-fA-F]{64}$/.test(transaction.hash)
+        ? transaction.hash.toLowerCase()
+        : null;
+      if (!transactionHash) throw fundingError("CAMPAIGN_TERMS_ANCHOR_FAILED");
+      let receipt;
+      try { receipt = await transaction.wait(); } catch { throw fundingError("CAMPAIGN_TERMS_ANCHOR_PENDING"); }
+      if (Number(receipt?.status) !== 1) throw fundingError("CAMPAIGN_TERMS_ANCHOR_FAILED");
+    }
+    if (!transactionHash) throw fundingError("CAMPAIGN_TERMS_RECOVERY_REQUIRED");
+
+    const result = await campaignRepository.recordCampaignTermsLock({
+      actor,
+      campaignId,
+      walletAddress: boundWallet.toLowerCase(),
+      signature,
+      transactionHash,
+      contentCommitment: source.termsCommitment,
+      version: source.version,
+      now,
+    });
+    return { campaign: result.campaign, termsCommitment: source.termsCommitment, transactionHash, alreadyLocked: result.alreadyLocked };
+  }
+
+  return Object.freeze({ prepareFunding, activateWithSignature, prepareCampaignTerms, lockCampaignTerms });
 }

@@ -77,7 +77,7 @@ export function createProofRouter({ proofRepository, proofService, authService, 
         viewer = "ADMIN";
       } else if (actor.role === "ORGANIZER" && actor.organizationId === context.organizerOrganizationId) {
         viewer = "ORGANIZER";
-      } else if (actor.role === "FUNDER" && actor.id === context.funderId) {
+      } else if (actor.role === "FUNDER" && (actor.id === context.funderId || await proofRepository.hasDonatedToCampaign(actor.id, context.campaignId))) {
         viewer = "FUNDER";
       } else {
         return response.status(403).json({ error: "forbidden" });

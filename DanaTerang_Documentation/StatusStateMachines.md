@@ -16,11 +16,16 @@ The Campaign and Milestone lifecycle values below are an initial enum proposal i
 | Human verification | `PENDING`, `VERIFIED`, `NEEDS_REVISION`, `REJECTED` | Version-specific result of a peer quorum, not a single Admin decision. `VERIFIED` means that version passed the defined review, not that the real-world event is proven. |
 | Disbursement/payment | `NOT_READY`, `READY_FOR_PAYMENT`, `PAYMENT_REPORTED`, `CONFIRMED`, `FAILED` | External payment lifecycle. `READY_FOR_PAYMENT` means the funder may proceed; `PAYMENT_REPORTED` is a self-reported external payment; `CONFIRMED` requires an independent settlement source. Phase 1 can show a report but does not reach `CONFIRMED`. |
 | Blockchain proof | `PENDING`, `SUBMITTED`, `ANCHORED`, `FAILED` | On-chain anchoring lifecycle. In Phase 1, `ANCHORED` means a successful Sepolia transaction receipt with a block number; the transaction is inspectable on Sepolia Etherscan. Pilot finality may require a stronger confirmation policy. Do not use `CONFIRMED` as a proof-state label. |
+| Fundraising | `DRAFT`, `OPEN`, `LOCKED`, `CLOSED`, `CANCELLED` | `OPEN` accepts donations. At H-48 an authorized Organizer signs final terms and the state becomes `LOCKED`; intake continues. Without the signature, intake stops and refunds are queued. A locked campaign closes at its scheduled time. |
+| Donation/refund | `PENDING`, `PAID`, `FAILED`, `REFUND_PENDING`, `REFUNDED`, `CHARGEBACK` | Payment provider lifecycle. Only a verified provider event changes settlement status. `PAID` is a provider-confirmed contribution, not a verified expense. |
+| Milestone disbursement | `PENDING`, `PAID`, `FAILED`, `CANCELLED` | Provider payout from campaign escrow after the campaign closes, milestone is complete, and at least one evidence version has quorum `VERIFIED`. |
 
 ## Transitions
 
 ```text
 Campaign:      DRAFT → ACTIVE → COMPLETED | CANCELLED
+Fundraising:   DRAFT → OPEN → LOCKED → CLOSED
+               OPEN → CANCELLED → REFUND_PENDING → REFUNDED
 Milestone:     PLANNED → IN_PROGRESS → COMPLETED | CANCELLED
 Evidence:      UPLOADED → PROCESSING → READY_FOR_REVIEW
                PROCESSING → PROCESSING_FAILED → PROCESSING (retry)

@@ -10,6 +10,7 @@ import {
   ListChecks,
   FileCheck,
   Banknote,
+  ArrowLeftRight,
   ScrollText,
   Building2,
   Users,
@@ -213,6 +214,14 @@ export default function AuthenticatedLayout({
                   <span className="nav-label">Pengguna</span>
                 </Link>
                 <Link
+                  href="/admin/fundraising"
+                  className={`workspace-nav-item ${navItem(pathname, "/admin/fundraising") ? "workspace-nav-item--active" : ""}`}
+                  aria-current={navItem(pathname, "/admin/fundraising") ? "page" : undefined}
+                >
+                  <ArrowLeftRight size={18} className="nav-icon" aria-hidden="true" />
+                  <span className="nav-label">Escrow &amp; transfer</span>
+                </Link>
+                <Link
                   href="/admin/campaigns"
                   className={`workspace-nav-item ${navItem(pathname, "/admin/campaigns") ? "workspace-nav-item--active" : ""}`}
                   aria-current={navItem(pathname, "/admin/campaigns") ? "page" : undefined}
@@ -281,6 +290,16 @@ export default function AuthenticatedLayout({
                 <div className="nav-divider" />
                 <div className="nav-section-label">{isFunder ? "Pendanaan & Audit" : "Audit & Keuangan"}</div>
 
+                {isFunder && (
+                  <Link
+                    href="/fundraising/donations"
+                    className={`workspace-nav-item ${navItem(pathname, "/fundraising/donations") ? "workspace-nav-item--active" : ""}`}
+                    aria-current={navItem(pathname, "/fundraising/donations") ? "page" : undefined}
+                  >
+                    <Banknote size={18} className="nav-icon" aria-hidden="true" />
+                    <span className="nav-label">Riwayat donasi</span>
+                  </Link>
+                )}
                 <Link
                   href="/payment-reports"
                   className={`workspace-nav-item ${navItem(pathname, "/payment-reports") ? "workspace-nav-item--active" : ""}`}
@@ -402,7 +421,7 @@ export default function AuthenticatedLayout({
             <div className="top-header-right">
               <WorkspaceSearch user={user} />
               <WorkspaceAlerts user={user} />
-              {isFunder && <FunderWalletButton />}
+              {(isFunder || isOrganizer) && <FunderWalletButton />}
             </div>
           </header>
 

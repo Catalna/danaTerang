@@ -36,8 +36,9 @@ export default function OrganizationPage() {
   }
 
   const org = user?.organization;
-  const orgName = org?.name || "Lembaga Sosial Mitra";
-  const orgType = organizationTypeLabel(org?.type);
+  const isIndividualFunder = user?.role === "FUNDER" && !user.organizationId;
+  const orgName = org?.name || (isIndividualFunder ? user?.name || "Funder Perorangan" : "Lembaga Sosial Mitra");
+  const orgType = isIndividualFunder ? "Perorangan" : organizationTypeLabel(org?.type);
 
   return (
     <AuthenticatedLayout
@@ -56,7 +57,12 @@ export default function OrganizationPage() {
             <div className="org-header-details">
               <div className="org-type-badge">
                 <span>{orgType}</span>
-                {org?.verified ? (
+                {isIndividualFunder ? (
+                  <span className="org-verified-tag">
+                    <ShieldCheck size={14} aria-hidden="true" />
+                    <span>Akun perorangan</span>
+                  </span>
+                ) : org?.verified ? (
                   <span className="org-verified-tag">
                     <ShieldCheck size={14} aria-hidden="true" />
                     <span>Terverifikasi</span>
@@ -69,7 +75,7 @@ export default function OrganizationPage() {
                 )}
               </div>
               <h2>{orgName}</h2>
-              <p>Akun Penyelenggara Resmi DanaTerang Indonesia</p>
+              <p>{isIndividualFunder ? "Akun Funder Perorangan DanaTerang" : "Akun Penyelenggara Resmi DanaTerang Indonesia"}</p>
             </div>
           </div>
           <div className="org-header-right">
@@ -87,26 +93,28 @@ export default function OrganizationPage() {
                 <div>
                   <p className="eyebrow">DATA ENTITAS</p>
                   <h3 id="org-info-heading" className="panel-heading">
-                    Informasi Lembaga
+                    {isIndividualFunder ? "Informasi Funder" : "Informasi Lembaga"}
                   </h3>
                 </div>
               </div>
 
               <dl className="org-details-dl">
                 <div className="org-dl-row">
-                  <dt>Nama Lengkap Lembaga</dt>
+                  <dt>{isIndividualFunder ? "Nama Funder" : "Nama Lengkap Lembaga"}</dt>
                   <dd>
                     <strong>{orgName}</strong>
                   </dd>
                 </div>
                 <div className="org-dl-row">
-                  <dt>Kategori Organisasi</dt>
+                  <dt>{isIndividualFunder ? "Jenis akun" : "Kategori Organisasi"}</dt>
                   <dd>{orgType}</dd>
                 </div>
                 <div className="org-dl-row">
-                  <dt>Status Verifikasi Legalitas</dt>
+                  <dt>{isIndividualFunder ? "Status profil" : "Status Verifikasi Legalitas"}</dt>
                   <dd>
-                    {org?.verified ? (
+                    {isIndividualFunder ? (
+                      <span className="status-pill status-pill--success">Tidak memerlukan verifikasi organisasi</span>
+                    ) : org?.verified ? (
                       <span className="status-pill status-pill--success">
                         Terverifikasi oleh Tim Kepatuhan DanaTerang
                       </span>

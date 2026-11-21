@@ -26,7 +26,7 @@ Requirements: Node.js 20.19+ and npm 10+.
 
 The quick setup includes native PostgreSQL. To use an existing PostgreSQL 16+ installation instead, follow `database/README.md`. This project does not require Docker.
 
-The local setup provisions only the first Admin. Register participants and assign Funder/Verifier roles through the Admin UI. For manual setup, follow `database/README.md` to apply migrations and provision the Admin using your chosen password.
+The local setup provisions only the first Admin. Public signup supports Organizer and Funder accounts (individual or organization); Verifier roles are assigned through the Admin UI. For manual setup, follow `database/README.md` to apply migrations and provision the Admin using your chosen password.
 
 Install browser-test prerequisites once before running the full workspace suite:
 
@@ -43,6 +43,8 @@ npm run dev:web
 ```
 
 The `packages/proof` workspace implements canonical proof schemas 1 (legacy) and 2 (peer-quorum bound) plus raw-file hashing. `packages/domain` validates independent workflow status machines. `backend/` contains the Express API, private storage adapters, and local OCR worker; `frontend/` contains the Next.js app; and `database/migrations/` contains PostgreSQL migrations. Copy `backend/.env.example` and `frontend/.env.example` to local `.env` files and fill only the settings needed for the service you run. Follow `database/README.md` to provision local OCR language data and run the synthetic receipt smoke test. The public audit page shows only campaigns explicitly published by an Admin; unpublished campaigns remain private.
+
+Public Rupiah fundraising design and current implementation boundaries are documented in [the fundraising/escrow design](docs/specs/2026-11-21-public-fundraising-escrow-design.md). A payment/escrow provider must be configured before checkout, refunds, or payouts can move money.
 
 ## Peer review
 

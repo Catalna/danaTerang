@@ -45,6 +45,7 @@ export default function FunderWalletButton() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const boxRef = useRef<HTMLDivElement>(null);
+  const walletOwnerLabel = user?.role === "ORGANIZER" ? "Organizer" : "Donatur";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,12 +102,12 @@ export default function FunderWalletButton() {
       } else if (cause instanceof Error && cause.message === "4001") {
         setError("Tanda tangan dibatalkan di wallet.");
       } else {
-        setError("Wallet belum dapat dihubungkan. Coba lagi.");
+        setError(`Wallet ${walletOwnerLabel} belum dapat dihubungkan. Coba lagi.`);
       }
     } finally {
       setConnecting(false);
     }
-  }, [load, user]);
+  }, [load, user, walletOwnerLabel]);
 
   const copyAddress = useCallback(async () => {
     if (!walletAddress) return;
@@ -148,12 +149,12 @@ export default function FunderWalletButton() {
             type="button"
             aria-haspopup="menu"
             aria-expanded={menuOpen}
-            aria-label={`Wallet funder ${shortWallet(walletAddress)} terhubung. Buka menu`}
+            aria-label={`Wallet ${walletOwnerLabel.toLowerCase()} ${shortWallet(walletAddress)} terhubung. Buka menu`}
             onClick={() => setMenuOpen((open) => !open)}
           >
             <span className="funder-wallet-avatar" aria-hidden="true"><Wallet size={18} /></span>
             <span className="funder-wallet-chip-text">
-              <span className="funder-wallet-chip-eyebrow"><span className="funder-wallet-dot" />Dompet funder</span>
+              <span className="funder-wallet-chip-eyebrow"><span className="funder-wallet-dot" />Dompet {walletOwnerLabel.toLowerCase()}</span>
               <span className="funder-wallet-chip-address">{shortWallet(walletAddress)}</span>
             </span>
             <span className={`funder-wallet-chevron${menuOpen ? " funder-wallet-chevron--open" : ""}`} aria-hidden="true">
@@ -166,7 +167,7 @@ export default function FunderWalletButton() {
               <div className="funder-wallet-popover-head">
                 <div>
                   <span className="funder-wallet-popover-eyebrow">Dompet terhubung</span>
-                  <strong className="funder-wallet-popover-title">Sepolia · Funder</strong>
+                  <strong className="funder-wallet-popover-title">Sepolia · {walletOwnerLabel}</strong>
                 </div>
                 <span className="status-pill status-pill--success">Aktif</span>
               </div>
@@ -203,7 +204,7 @@ export default function FunderWalletButton() {
           onClick={() => void connect()}
         >
           {connecting ? <Loader2 size={16} className="funder-wallet-spin" aria-hidden="true" /> : <Wallet size={16} aria-hidden="true" />}
-          <span>{connecting ? "Menghubungkan…" : "Hubungkan wallet"}</span>
+          <span>{connecting ? "Menghubungkan…" : `Hubungkan wallet ${walletOwnerLabel}`}</span>
         </button>
       )}
 

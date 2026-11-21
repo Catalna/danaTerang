@@ -9,12 +9,13 @@ import { createAuthRouter } from "./routes/auth.js";
 import { createCampaignRouter } from "./routes/campaigns.js";
 import { createEvidenceRouter } from "./routes/evidence.js";
 import { createFundingRouter } from "./routes/funding.js";
+import { createFundraisingRouter } from "./routes/fundraising.js";
 import { createProofRouter } from "./routes/proofs.js";
 import { createPublicRouter } from "./routes/publicAudit.js";
 import { createReviewRouter } from "./routes/reviews.js";
 import { createPaymentRouter } from "./routes/payments.js";
 
-export function createApp({ authRepository, campaignRepository, evidenceRepository, paymentRepository, reviewRepository, peerReviewService, proofRepository, proofService, fundingService, readinessService, testWalletSigner, objectStorage, maxEvidenceBytes, webOrigin = process.env.WEB_ORIGIN, nodeEnv = process.env.NODE_ENV } = {}) {
+export function createApp({ authRepository, campaignRepository, fundraisingService, evidenceRepository, paymentRepository, reviewRepository, peerReviewService, proofRepository, proofService, fundingService, readinessService, testWalletSigner, objectStorage, maxEvidenceBytes, webOrigin = process.env.WEB_ORIGIN, nodeEnv = process.env.NODE_ENV } = {}) {
   const app = express();
   app.disable("x-powered-by");
   app.use(cors({
@@ -23,7 +24,11 @@ export function createApp({ authRepository, campaignRepository, evidenceReposito
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type"],
   }));
-  app.use(express.json({ limit: "1mb", strict: true }));
+  app.use(express.json({
+    limit: "1mb",
+    strict: true,
+    verify: (request, _response, buffer) => { request.rawBody = Buffer.from(buffer); },
+  }));
   app.use(cookieParser());
 
   app.get("/api/health", (_request, response) => {
@@ -85,6 +90,7 @@ export function createApp({ authRepository, campaignRepository, evidenceReposito
   if (authRepository) {
     const authService = createAuthService({ authRepository });
     if (paymentRepository) app.use("/api", createPaymentRouter({ paymentRepository, authService, webOrigin }));
+    if (fundraisingService) app.use("/api", createFundraisingRouter({ fundraisingService, authService, webOrigin, nodeEnv }));
     app.use("/api/auth", createAuthRouter({ authService, webOrigin, nodeEnv }));
     app.use("/api/admin", createAdminRouter({ authRepository, authService, campaignRepository, webOrigin }));
     if (reviewRepository && peerReviewService) {
@@ -103,7 +109,7 @@ export function createApp({ authRepository, campaignRepository, evidenceReposito
         try {
           const user = await authService.loadSessionUser(request.cookies?.dt_session);
           if (!user) return response.status(401).json({ error: "authentication_required" });
-          if (user.role !== "VERIFIER" && user.role !== "FUNDER") return response.status(403).json({ error: "forbidden" });
+           if (user.role !== "VERIFIER" && user.role !== "FUNDER" && user.role !== "ORGANIZER") return response.status(403).json({ error: "forbidden" });
           if (!request.body || Object.keys(request.body).length !== 2
               || typeof request.body.address !== "string" || !request.body.typedData) {
             return response.status(400).json({ error: "invalid_request" });

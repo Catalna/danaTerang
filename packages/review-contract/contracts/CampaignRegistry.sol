@@ -21,11 +21,17 @@ contract CampaignRegistry is EIP712("DanaTerang Campaign Funding", "1") {
     error EXPECT_BAD_SIGNATURE();
     error EXPECT_FUNDER_MISMATCH();
     error EXPECT_VERSION_MISMATCH();
+    error EXPECT_ZERO_ORGANIZER();
+    error EXPECT_CAMPAIGN_TERMS_ALREADY_LOCKED();
+    error EXPECT_CAMPAIGN_TERMS_WINDOW();
+    error EXPECT_CAMPAIGN_TERMS_BAD_SIGNATURE();
 
     bytes32 private constant CAMPAIGN_FUNDING_TYPEHASH =
         keccak256("CampaignFunding(bytes32 campaignId,bytes32 contentCommitment,address funder,uint256 version)");
     bytes32 private constant CAMPAIGN_FUNDING_AMENDMENT_TYPEHASH =
         keccak256("CampaignFundingAmendment(bytes32 campaignId,bytes32 newContentCommitment,uint256 version)");
+    bytes32 private constant CAMPAIGN_TERMS_TYPEHASH =
+        keccak256("CampaignTerms(bytes32 campaignId,bytes32 contentCommitment,address organizer,uint64 closesAt,uint256 version)");
 
     struct CampaignFunding {
         bytes32 campaignId;
@@ -47,10 +53,28 @@ contract CampaignRegistry is EIP712("DanaTerang Campaign Funding", "1") {
         uint64 fundedAt;
     }
 
+    struct CampaignTerms {
+        bytes32 campaignId;
+        bytes32 contentCommitment;
+        address organizer;
+        uint64 closesAt;
+        uint256 version;
+    }
+
+    struct CampaignTermsRecord {
+        bytes32 contentCommitment;
+        address organizer;
+        uint64 closesAt;
+        uint256 version;
+        uint64 lockedAt;
+    }
+
     event CampaignFunded(bytes32 indexed campaignId, address indexed funder, bytes32 contentCommitment, uint256 version);
     event CampaignFundingAmended(bytes32 indexed campaignId, address indexed funder, bytes32 newContentCommitment, uint256 version);
+    event CampaignTermsLocked(bytes32 indexed campaignId, address indexed organizer, bytes32 contentCommitment, uint64 closesAt, uint256 version);
 
     mapping(bytes32 => FundingRecord) private _records;
+    mapping(bytes32 => CampaignTermsRecord) private _campaignTerms;
 
     function fundCampaign(bytes32 campaignId, bytes32 contentCommitment, address funder, bytes calldata signature) external {
         if (campaignId == bytes32(0)) revert EXPECT_ZERO_CAMPAIGN_ID();
@@ -107,6 +131,56 @@ contract CampaignRegistry is EIP712("DanaTerang Campaign Funding", "1") {
         return _records[campaignId].version;
     }
 
+    /// @notice Locks the final campaign terms during the 48-hour window before fundraising closes.
+    /// @dev Rupiah is held/settled by a payment provider; this registry stores only the signed terms commitment.
+    function lockCampaignTerms(
+        bytes32 campaignId,
+        bytes32 contentCommitment,
+        address organizer,
+        uint64 closesAt,
+        uint256 version,
+        bytes calldata signature
+    ) external {
+        if (campaignId == bytes32(0)) revert EXPECT_ZERO_CAMPAIGN_ID();
+        if (contentCommitment == bytes32(0)) revert EXPECT_ZERO_COMMITMENT();
+        if (organizer == address(0)) revert EXPECT_ZERO_ORGANIZER();
+        if (_campaignTerms[campaignId].organizer != address(0)) revert EXPECT_CAMPAIGN_TERMS_ALREADY_LOCKED();
+        if (uint256(closesAt) < 48 hours || closesAt <= block.timestamp) revert EXPECT_CAMPAIGN_TERMS_WINDOW();
+        if (block.timestamp < uint256(closesAt) - 48 hours) revert EXPECT_CAMPAIGN_TERMS_WINDOW();
+        if (version == 0) revert EXPECT_VERSION_MISMATCH();
+
+        CampaignTerms memory message = CampaignTerms({
+            campaignId: campaignId,
+            contentCommitment: contentCommitment,
+            organizer: organizer,
+            closesAt: closesAt,
+            version: version
+        });
+        if (ECDSA.recover(_hashTypedDataV4(_hashCampaignTerms(message)), signature) != organizer) {
+            revert EXPECT_CAMPAIGN_TERMS_BAD_SIGNATURE();
+        }
+
+        _campaignTerms[campaignId] = CampaignTermsRecord({
+            contentCommitment: contentCommitment,
+            organizer: organizer,
+            closesAt: closesAt,
+            version: version,
+            lockedAt: uint64(block.timestamp)
+        });
+        emit CampaignTermsLocked(campaignId, organizer, contentCommitment, closesAt, version);
+    }
+
+    function getCampaignTerms(bytes32 campaignId) external view returns (
+        bytes32 contentCommitment,
+        address organizer,
+        uint64 closesAt,
+        uint256 version,
+        uint64 lockedAt
+    ) {
+        CampaignTermsRecord memory record = _campaignTerms[campaignId];
+        return (record.contentCommitment, record.organizer, record.closesAt, record.version, record.lockedAt);
+    }
+
     // Returns the STRUCT hash only; _hashTypedDataV4 is applied by the caller
     // exactly once. (A previous draft hashed twice here, breaking verification.)
     function _hashFunding(CampaignFunding memory message) private pure returns (bytes32) {
@@ -124,6 +198,17 @@ contract CampaignRegistry is EIP712("DanaTerang Campaign Funding", "1") {
             CAMPAIGN_FUNDING_AMENDMENT_TYPEHASH,
             message.campaignId,
             message.newContentCommitment,
+            message.version
+        ));
+    }
+
+    function _hashCampaignTerms(CampaignTerms memory message) private pure returns (bytes32) {
+        return keccak256(abi.encode(
+            CAMPAIGN_TERMS_TYPEHASH,
+            message.campaignId,
+            message.contentCommitment,
+            message.organizer,
+            message.closesAt,
             message.version
         ));
     }

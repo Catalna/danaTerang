@@ -98,7 +98,38 @@ test("amending an unfunded campaign is rejected and no admin path exists", async
     await assert.rejects(chain.contract.amendCampaignFunding(CAMPAIGN_ID, OTHER_COMMITMENT, 1, await chain.signAmendment(chain.funder, chain.contract, amendment)));
     const iface = chain.contract.interface;
     const names = iface.fragments.filter((f) => f.type === "function").map((f) => f.name);
-    assert.deepEqual(names.sort(), ["amendCampaignFunding", "eip712Domain", "fundCampaign", "fundingVersion", "getFunding"]);
+    assert.deepEqual(names.sort(), ["amendCampaignFunding", "eip712Domain", "fundCampaign", "fundingVersion", "getCampaignTerms", "getFunding", "lockCampaignTerms"].sort());
+  } finally {
+    await chain.close();
+  }
+});
+
+test("only the campaign Organizer can lock final terms during the H-48 window", async () => {
+  const chain = await compileAndDeployRegistry();
+  try {
+    const closesAt = 48 * 60 * 60;
+    const message = chain.campaignTermsMessage({
+      campaignId: CAMPAIGN_ID,
+      contentCommitment: COMMITMENT,
+      organizer: chain.organizer.address,
+      closesAt,
+      version: 1,
+    });
+    const tooEarly = chain.campaignTermsMessage({ ...message, closesAt: closesAt + 1 });
+    const organizerSignature = await chain.signCampaignTerms(chain.organizer, chain.contract, message);
+    const tooEarlySignature = await chain.signCampaignTerms(chain.organizer, chain.contract, tooEarly);
+    await assert.rejects(chain.contract.lockCampaignTerms(tooEarly, tooEarlySignature));
+
+    const forged = await chain.signCampaignTerms(chain.outsider, chain.contract, message);
+    await assert.rejects(chain.contract.lockCampaignTerms(message, forged));
+
+    await chain.contract.lockCampaignTerms(message, organizerSignature);
+    const record = await chain.contract.getCampaignTerms(CAMPAIGN_ID);
+    assert.equal(record.contentCommitment, COMMITMENT);
+    assert.equal(record.organizer, chain.organizer.address);
+    assert.equal(record.closesAt, closesAt);
+    assert.equal(record.version, 1);
+    await assert.rejects(chain.contract.lockCampaignTerms(message, organizerSignature));
   } finally {
     await chain.close();
   }

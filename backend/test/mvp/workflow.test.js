@@ -64,6 +64,7 @@ test("MVP: upload → OCR → late wallet binding → 2-of-3 EVM quorum → reco
     const email = `mvp-${index}@example.test`;
     const response = await api("post", "/auth/register").send({
       name: `MVP User ${index}`, email, password: PASSWORD,
+      role: "ORGANIZER", accountType: "ORGANIZATION",
       organizationName: `Independent Organization ${index}`, organizationType: "NGO", acceptedTermsVersion: TERMS_VERSION,
     }).expect(201);
     if (role !== "ORGANIZER") await api("patch", `/admin/users/${response.body.user.id}/role`, adminCookie).send({ role }).expect(200);

@@ -63,6 +63,13 @@ Fields:
 - status
 - publiclyPublishedAt
 - publishedBy
+- fundraisingTarget (legacy storage column `total_budget` during transition)
+- fundraisingCloseAt
+- fundraisingStatus
+- causeCategory
+- amendmentCount (maximum 2)
+- termsCommitment
+- termsLockedAt
 - startDate
 - endDate
 - createdAt
@@ -70,6 +77,21 @@ Fields:
 
 `status` is `CampaignStatus` and uses the independent campaign lifecycle in `StatusStateMachines.md`.
 `publiclyPublishedAt` and `publishedBy` are null by default. An active Admin explicitly publishes or withdraws a campaign; only published campaigns appear in the public-audit projection.
+
+Public fundraising accepts multiple authenticated donations until `fundraisingCloseAt`. The target is informational and does not cap donations. The Organizer signs the immutable final terms snapshot in the H-48 window; the terms state and fundraising state are separate from the program lifecycle.
+
+### FundraisingDonation and EscrowLedger
+
+`FundraisingDonation` records donor, provider, provider payment reference, gross amount, provider fee, net amount, refund/related-cause preference, and provider-confirmed status. Donations are not counted as settled from a browser redirect; only a verified, idempotent provider webhook settles them.
+
+Escrow uses append-only double-entry `FundraisingLedgerTransaction` and `FundraisingLedgerEntry` records. For every campaign:
+
+```text
+donations + transfers-in + platform support
+= provider fees + milestone payouts + refunds + transfers-out + escrow balance
+```
+
+`OrganizationPayoutRecipient` stores a provider recipient reference and Admin verification state. `FundraisingDisbursement` is created for a completed milestone only when a current evidence version is `VERIFIED`, the fundraising campaign is closed, and escrow covers the payout. `FundraisingSurplusTransfer` links related cause campaigns; transfer requires explicit donor consent, matching cause category, no pending refunds, an Organizer request, and Admin approval.
 
 Funding modes:
 

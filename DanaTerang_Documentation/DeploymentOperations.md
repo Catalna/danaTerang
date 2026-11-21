@@ -45,9 +45,12 @@ BLOCKCHAIN_PRIVATE_KEY=
 CONTRACT_ADDRESS=
 BLOCKCHAIN_CHAIN_ID=11155111
 BLOCKCHAIN_EXPLORER_URL=https://sepolia.etherscan.io
+CAMPAIGN_REGISTRY_ADDRESS=
 ```
 
-`PEER_REVIEW_CONTRACT_ADDRESS` identifies the deployed peer-quorum contract. At startup the API checks the configured chain ID, deployed code, and that `BLOCKCHAIN_PRIVATE_KEY` derives the contract's configured relayer address. `BLOCKCHAIN_PRIVATE_KEY` is the backend service-wallet relayer, not a Verifier key. Keep it server-side, fund it only with Sepolia ETH, and never commit `.env`. The initial three Verifier addresses and Organization commitments are fixed constructor inputs at deployment. Assigned Verifiers hold separate organization-controlled signing wallets; Organizers and Funders do not connect wallets to submit evidence or view proof.
+`PEER_REVIEW_CONTRACT_ADDRESS` identifies the deployed peer-quorum contract. `CAMPAIGN_REGISTRY_ADDRESS` must reference the updated CampaignRegistry that exposes `lockCampaignTerms`. At startup the API checks the configured chain ID, deployed code, and that `BLOCKCHAIN_PRIVATE_KEY` derives the configured relayer address. `BLOCKCHAIN_PRIVATE_KEY` is the backend service-wallet relayer, not a Verifier key. Keep it server-side, fund it only with Sepolia ETH, and never commit `.env`. Assigned Verifiers hold separate organization-controlled signing wallets. The authorized Organizer binds a wallet to sign final campaign terms; donors need no wallet.
+
+Development/test uses a local simulated provider to exercise checkout, settlement, refunds, payouts, and fees without moving money. Public Rupiah fundraising remains disabled for live transactions until the team selects and configures a payment/escrow provider adapter and credentials. The production adapter must verify signed webhooks, create idempotent checkout/refund/payout requests, quote fees, and support verified recipient accounts. Never enable the local simulation in production.
 
 ## 3. Monitoring
 
@@ -56,7 +59,7 @@ Monitor:
 - API errors,
 - failed uploads,
 - OCR failures,
-- wallet binding failures and peer-vote receipt reconciliation,
+- wallet binding failures, Organizer terms locks, payment webhooks, refund/payout reconciliation, and peer-vote receipt reconciliation,
 - `WAITING_FOR_CHAIN` review-round age and roster mismatches,
 - blockchain failures,
 - transaction confirmation,

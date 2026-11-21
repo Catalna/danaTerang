@@ -216,7 +216,7 @@ const faqs = [
   },
   {
     question: "Bagaimana cara organisasi sosial atau perusahaan CSR mulai menggunakan DanaTerang?",
-    answer: "Anda dapat mendaftar akun Organizer untuk membuat program sosial baru, atau masuk ke portal Funder CSR untuk memonitor portofolio program yang Anda danai. Kami juga menyediakan panduan aktivasi cepat serta integrasi API.",
+    answer: "Anda dapat mendaftar sebagai Organizer untuk membuat program sosial, atau sebagai Funder perorangan maupun organisasi untuk memonitor dan mendukung program. Kami juga menyediakan panduan aktivasi cepat serta integrasi API.",
   },
 ];
 
@@ -333,7 +333,10 @@ export default function LandingPage() {
                 <ArrowRight size={18} />
               </a>
               <Link href="/register" className="btn-landing btn-landing--secondary">
-                <span>Daftar Organisasi Pelaksana</span>
+                <span>Daftar sebagai Organizer atau Funder</span>
+              </Link>
+              <Link href="/fundraising" className="btn-landing btn-landing--secondary">
+                <span>Jelajahi campaign donasi</span>
               </Link>
             </div>
 
@@ -696,8 +699,8 @@ export default function LandingPage() {
                       <li><CheckCircle2 size={18} className="text-teal" /> <span>Laporan kepatuhan ESG dan CSR siap audit dengan jejak cryptographic proof</span></li>
                       <li><CheckCircle2 size={18} className="text-teal" /> <span>Eliminasi review manual dokumen kwitansi yang menyita waktu staf perusahaan</span></li>
                     </ul>
-                    <Link href="/register" className="btn-landing btn-landing--primary mt-4">
-                      <span>Mulai Kelola Portofolio</span>
+                    <Link href="/register?role=FUNDER" className="btn-landing btn-landing--primary mt-4">
+                      <span>Buat akun Funder</span>
                       <ArrowRight size={16} />
                     </Link>
                   </div>
@@ -1074,7 +1077,7 @@ export default function LandingPage() {
               <p className="footer-nav-heading">Akses Portal</p>
               <ul>
                 <li><Link href="/login">Log In Pengguna</Link></li>
-                <li><Link href="/register">Registrasi Organizer</Link></li>
+                <li><Link href="/register">Registrasi Organizer atau Funder</Link></li>
                 <li><Link href="/login">Ruang Verifier</Link></li>
                 <li><Link href="/login">Ruang Admin</Link></li>
               </ul>

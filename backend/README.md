@@ -104,14 +104,27 @@ Respons readiness hanya berisi kode status komponen (`ok`, `missing`, `not_confi
 
 ## 2. Menjalankan alur demo
 
-1. Registrasikan Organizer, satu calon Funder, dan tiga calon Verifier, masing-masing dari organisasi berbeda. Registrasi publik selalu menghasilkan Organizer.
-2. Login sebagai Admin dan ubah peran calon Funder/Verifier lewat `PATCH /api/admin/users/:userId/role`. Login ulang akun yang perannya diubah karena sesi lamanya dicabut.
-3. Organizer memilih Funder dari `GET /api/funders`, membuat campaign dan milestone. Funder mengaktifkan campaign; Organizer mengubah milestone ke `IN_PROGRESS`.
+1. Registrasikan Organizer, Funder, dan tiga calon Verifier. Funder dapat mendaftar sendiri sebagai individu/organisasi; Verifier tetap ditetapkan Admin.
+2. Login sebagai Admin dan ubah calon Verifier lewat `PATCH /api/admin/users/:userId/role`. Login ulang akun yang perannya diubah karena sesi lamanya dicabut.
+3. Untuk crowdfunding, Organizer membuat campaign dengan target Rupiah dan jadwal tutup, menyusun milestone, lalu meminta Admin menerbitkannya. Donatur berakun masuk sebagai Funder; campaign menerima beberapa donasi, bukan satu Funder tunggal. Alur campaign lama dengan Funder yang ditetapkan Admin tetap tersedia untuk data/fixture terdahulu.
 4. Organizer mengunggah PDF/PNG/JPEG. API memvalidasi file, menyimpan byte privat dan SHA-256, lalu memasukkan pekerjaan OCR secara transaksional.
 5. Tiga Verifier menghubungkan wallet yang ada pada roster kontrak. Wallet menandatangani challenge sekali pakai; kunci Verifier tetap di wallet masing-masing.
 6. Worker membuka review pada kontrak setelah OCR selesai dan ketiga wallet siap. Dua keputusan bertanda tangan yang sama menyelesaikan quorum.
 7. Quorum menghasilkan canonical proof schema 2; relayer mengirim commitment ke `ProofAnchor`. Status baru `ANCHORED` setelah receipt berhasil dan block number tersedia.
 8. Admin mempublikasikan campaign. Public audit hanya menampilkan proyeksi metadata yang diizinkan.
+
+### Crowdfunding, escrow, dan penyaluran
+
+Campaign crowdfunding berstatus penggalangan yang terpisah dari lifecycle program (`fundraising_status`). Target tidak membatasi donasi. Endpoint utama: `GET /api/public/fundraising-campaigns`, `POST /api/campaigns/:id/donations`, `GET /api/fundraising/donations`, `GET /api/campaigns/:id/reconciliation`, `POST /api/milestones/:id/disbursements`, dan webhook `POST /api/fundraising/webhooks/:provider`.
+
+- Campaign harus dipublikasikan Admin dan memiliki milestone sebelum dibuka untuk donasi.
+- Donasi wajib dibuat dengan akun Funder. Payload berisi `amount` (string IDR), `idempotencyKey` (UUID), `reallocationPolicy` (`REDIRECT_RELATED` atau `REFUND`), dan `returnUrl`.
+- Hanya webhook provider yang diverifikasi dan idempoten yang mengonfirmasi pembayaran serta menulis ledger escrow.
+- Perubahan terms Organizer dibatasi dua kali (satu request simpan = satu revisi). H-48, Organizer menandatangani terms final memakai wallet yang sudah diikat. Terms dicatat di CampaignRegistry; Admin tidak ikut menandatangani. Campaign tanpa tanda tangan dibatalkan dan refund dimulai. Campaign bertanda tangan tetap menerima donasi sampai jadwal tutup.
+- Worker menutup campaign bertanda tangan saat jadwal tercapai. Milestone selesai dan memiliki evidence `VERIFIED` menjadi syarat request payout. Admin harus memverifikasi payout recipient provider untuk organisasi.
+- Sisa dana bisa diminta untuk dialihkan oleh Organizer ke campaign ber-kategori sama hanya jika setiap donatur setuju `REDIRECT_RELATED`; Admin menyetujui transfer. Donatur yang memilih `REFUND` memblokir transfer dan menerima refund.
+- Ledger double-entry merinci donasi, biaya, payout, refund, transfer, subsidi refund, dan escrow. Setiap campaign mempunyai laporan rekonsiliasi.
+- Environment development/test memakai payment provider simulasi lokal agar alur checkout, refund, payout, dan ledger dapat diuji tanpa uang sungguhan. Provider simulasi tidak tersedia di production. Di production, integrasi payment provider sengaja gagal-tertutup sampai provider/escrow nyata dipilih, adapter, kredensial, dan verified webhook dikonfigurasi. Ethereum hanya menyimpan komitmen terms, bukan Rupiah.
 
 ### Sepolia
 
@@ -119,6 +132,7 @@ Isi kedua alamat kontrak dan konfigurasi relayer pada `.env`:
 
 ```dotenv
 PEER_REVIEW_CONTRACT_ADDRESS=
+CAMPAIGN_REGISTRY_ADDRESS=
 PROOF_ANCHOR_CONTRACT_ADDRESS=
 BLOCKCHAIN_RPC_URL=
 BLOCKCHAIN_PRIVATE_KEY=
@@ -161,11 +175,15 @@ Contoh payload registrasi:
   "name": "Organizer Demo",
   "email": "organizer@example.test",
   "password": "password-lokal-pilihan-anda",
+  "role": "ORGANIZER",
+  "accountType": "ORGANIZATION",
   "organizationName": "Komunitas Demo",
   "organizationType": "COMMUNITY",
   "acceptedTermsVersion": "2026-10-07-funder-terms-v1"
 }
 ```
+
+Registrasi publik menerima `role: "ORGANIZER"` atau `"FUNDER"`. Organizer harus memakai `accountType: "ORGANIZATION"`. Funder dapat memilih `accountType: "INDIVIDUAL"` tanpa field organisasi, atau `"ORGANIZATION"` dengan `organizationName` dan `organizationType`.
 
 Upload memakai `multipart/form-data`: field `evidenceType=RECEIPT` dan satu file bernama field `file`, maksimum default 10 MiB. Vote memakai `decision`, `noConflictAttested: true`, dan `signature` dari typed data `/votes/prepare`. Untuk `NEEDS_REVISION`, sertakan pula `organizerInstructions` dan `instructionSalt` hasil prepare. Publikasi memakai `{ "published": true }`.
 

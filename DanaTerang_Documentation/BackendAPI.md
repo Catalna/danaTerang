@@ -15,7 +15,7 @@ It coordinates:
 - Indonesian/English OCR with per-field confidence,
 - independent screening state,
 - permissioned Verifier quorum and version-specific review,
-- optional external-payment reports (attributed, not independently verified),
+- authenticated public donations, verified payment-provider events, escrow ledger, refunds, milestone payouts, and related-cause transfers,
 - blockchain anchoring,
 - audit logs.
 
@@ -63,7 +63,22 @@ POST /campaigns
 GET  /campaigns
 GET  /campaigns/:id
 PATCH /campaigns/:id
+GET  /public/fundraising-campaigns
+GET  /public/fundraising-campaigns/:id
+POST /campaigns/:id/donations
+GET  /fundraising/donations
+GET  /campaigns/:id/reconciliation
+GET  /campaigns/:id/terms/prepare
+POST /campaigns/:id/terms/lock
+POST /campaigns/:id/surplus-transfers
+POST /milestones/:id/disbursements
+POST /fundraising/webhooks/:provider
+GET  /admin/fundraising/surplus-transfers
+PATCH /admin/fundraising/surplus-transfers/:id/approve
+PATCH /admin/organizations/:id/payout-recipient
 ```
+
+Donation and payout endpoints require an authenticated Funder/Organizer as appropriate. Donations are not credited to the raised total until a verified provider webhook settles them. `payment_provider_unavailable` is returned until a real provider adapter is configured. Provider callbacks are idempotent; only allowlisted fields are recorded. Final terms are Organizer-signed at H-48. Transfer surplus only between same-category causes when all source donors consent and Admin approves.
 
 ### Admin campaign publication
 
@@ -189,7 +204,7 @@ Record the version-specific peer quorum on Ethereum Sepolia
 → update proof status
 ```
 
-For Phase 1, the proof is the SHA-256 hash of the versioned canonical package defined in `BlockchainProof.md`. The backend wallet pays gas in Sepolia ETH. Assigned Verifiers sign review votes with their own wallet; Organizers and Funders do not need one. Payment reports are not part of the demo proof.
+For Phase 1, the evidence proof is the SHA-256 hash of the versioned canonical package defined in `BlockchainProof.md`. The backend wallet pays gas in Sepolia ETH. Assigned Verifiers sign review votes with their own wallet. An authorized Organizer binds a wallet to sign final campaign terms at H-48; donors do not need a wallet. Rupiah provider settlement is off-chain and is not part of the evidence proof.
 
 ## 7. Queue Recommendation
 

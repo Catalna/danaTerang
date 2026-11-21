@@ -17,7 +17,7 @@ CREATE TABLE users (
   status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'DISABLED')),
   created_at TIMESTAMPTZ NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL,
-  CHECK ((role = 'ADMIN' AND organization_id IS NULL) OR (role <> 'ADMIN' AND organization_id IS NOT NULL))
+  CONSTRAINT users_check CHECK ((role = 'ADMIN' AND organization_id IS NULL) OR (role <> 'ADMIN' AND organization_id IS NOT NULL))
 );
 
 CREATE UNIQUE INDEX users_single_admin_idx ON users (role) WHERE role = 'ADMIN';

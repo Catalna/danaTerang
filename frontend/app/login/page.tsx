@@ -134,7 +134,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="auth-switch">Belum punya akun? <Link href="/register">Buat akun Organizer</Link></p>
+        <p className="auth-switch">Belum punya akun? <Link href="/register">Buat akun Organizer atau Funder</Link></p>
       </section>
 
       <aside className="auth-aside" aria-labelledby="auth-aside-title">

@@ -168,7 +168,7 @@ Responsibilities:
 6. Show a public audit page for campaigns an Admin explicitly publishes. The public allowlist includes campaign/milestone status, aggregate quorum status, and proof references; original evidence is not downloadable by default.
 7. Provide a responsive web UI for the demo flow.
 
-Phase 1 peer decisions and proof anchoring use Solidity contracts on Ethereum Sepolia Testnet, called through ethers.js. Assigned Verifiers need their own organization-controlled wallet to sign votes; a backend service wallet relays transactions and pays gas. Organizers and Funders do not need wallets. Public proof details link to Sepolia Etherscan.
+Peer decisions and proof anchoring use Solidity contracts on Ethereum Sepolia Testnet, called through ethers.js. Assigned Verifiers need their own organization-controlled wallet to sign votes; a backend service wallet relays transactions and pays gas. The authorized Organizer binds a wallet to sign final fundraising terms at H-48. Donors do not need wallets. Public proof details link to Sepolia Etherscan. Rupiah custody and settlement use a separate configured payment/escrow provider, not a smart contract.
 
 ### Phase 1 — Optional if Time Allows
 

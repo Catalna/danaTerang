@@ -78,7 +78,7 @@ For backend signing:
 - use secure key management in production,
 - restrict signer permissions.
 
-The Phase 1 service key is for Ethereum Sepolia Testnet only and must remain server-side. The backend service wallet relays peer votes and pays gas in Sepolia ETH; it cannot sign on behalf of a Verifier. A Verifier binds an organization-controlled wallet through an expiring, one-time typed-data challenge; private keys remain in the wallet. Assigned Verifiers hold their own keys, while Organizers and Funders do not provide a wallet or private key. Public proof details link to Sepolia Etherscan.
+The Phase 1 service key is for Ethereum Sepolia Testnet only and must remain server-side. The backend service wallet relays peer votes and terms commitments and pays gas in Sepolia ETH; it cannot sign on behalf of a Verifier or Organizer. A Verifier binds an organization-controlled wallet through an expiring, one-time typed-data challenge; an authorized Organizer binds a wallet for H-48 terms signing. Private keys remain in the wallet. Donors do not provide a wallet or private key. Public proof details link to Sepolia Etherscan.
 
 ## 7. Evidence Integrity
 

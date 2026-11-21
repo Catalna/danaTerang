@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { isUserId, parseFundingActivation } from "../auth/validation.js";
+import { isUserId, parseFundingActivation, parseCampaignTermsSignature } from "../auth/validation.js";
 import { createSessionMiddleware } from "../middleware/session.js";
 import { requireRole } from "../middleware/requireRole.js";
 
@@ -21,6 +21,19 @@ function sendFundingError(error, response, next) {
     CAMPAIGN_NOT_FOUND: [404, "not_found"],
     CAMPAIGN_NOT_IN_DRAFT: [409, "campaign_not_draft"],
     MILESTONES_REQUIRED: [409, "milestones_required"],
+    CAMPAIGN_TERMS_DISABLED: [503, "campaign_terms_disabled"],
+    CAMPAIGN_SIGNER_WALLET_NOT_BOUND: [409, "campaign_signer_wallet_not_bound"],
+    CAMPAIGN_SIGNER_WALLET_MISMATCH: [409, "campaign_signer_wallet_mismatch"],
+    INVALID_CAMPAIGN_TERMS_SIGNATURE: [400, "invalid_campaign_terms_signature"],
+    CAMPAIGN_TERMS_NOT_READY: [409, "campaign_terms_not_ready"],
+    CAMPAIGN_TERMS_NOT_FOUND: [404, "campaign_terms_not_found"],
+    CAMPAIGN_TERMS_WINDOW_NOT_OPEN: [409, "campaign_terms_window_not_open"],
+    CAMPAIGN_TERMS_WINDOW_CLOSED: [409, "campaign_terms_window_closed"],
+    CAMPAIGN_TERMS_VERSION_MISMATCH: [409, "campaign_terms_version_mismatch"],
+    CAMPAIGN_TERMS_CHAIN_CONFLICT: [409, "campaign_terms_chain_conflict"],
+    CAMPAIGN_TERMS_RECOVERY_REQUIRED: [503, "campaign_terms_recovery_required"],
+    CAMPAIGN_TERMS_ANCHOR_FAILED: [502, "campaign_terms_anchor_failed"],
+    CAMPAIGN_TERMS_ANCHOR_PENDING: [202, "campaign_terms_anchor_pending"],
   }[error?.code];
   if (mapped) return response.status(mapped[0]).json({ error: mapped[1] });
   return next(error);
@@ -38,6 +51,41 @@ export function createFundingRouter({ fundingService, authService, webOrigin }) 
   const router = Router();
   const requireSession = createSessionMiddleware(authService);
   const requireFunder = requireRole("FUNDER");
+  const requireOrganizer = requireRole("ORGANIZER");
+
+  router.get(
+    "/campaigns/:campaignId/terms/prepare",
+    requireSession,
+    requireOrganizer,
+    async (request, response, next) => {
+      if (!isUserId(request.params.campaignId)) return response.status(400).json({ error: "invalid_request" });
+      try {
+        return response.status(200).json(await fundingService.prepareCampaignTerms({ actor: request.currentUser, campaignId: request.params.campaignId }));
+      } catch (error) {
+        return sendFundingError(error, response, next);
+      }
+    },
+  );
+
+  router.post(
+    "/campaigns/:campaignId/terms/lock",
+    (request, response, next) => {
+      if (!webOrigin || request.get("origin") !== webOrigin) return response.status(403).json({ error: "forbidden" });
+      return next();
+    },
+    requireSession,
+    requireOrganizer,
+    async (request, response, next) => {
+      if (!isUserId(request.params.campaignId)) return response.status(400).json({ error: "invalid_request" });
+      const input = parseCampaignTermsSignature(request.body);
+      if (!input) return response.status(400).json({ error: "invalid_request" });
+      try {
+        return response.status(200).json(await fundingService.lockCampaignTerms({ actor: request.currentUser, campaignId: request.params.campaignId, ...input }));
+      } catch (error) {
+        return sendFundingError(error, response, next);
+      }
+    },
+  );
 
   router.get(
     "/campaigns/:campaignId/activate/prepare",

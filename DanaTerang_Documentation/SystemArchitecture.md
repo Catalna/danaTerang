@@ -48,7 +48,8 @@ Responsibilities:
 - milestone logic,
 - evidence workflow,
 - verification workflow,
-- optional external-payment reports attributed to their source (no payment execution or independent settlement verification),
+- authenticated public donations and verified payment-provider webhook settlement,
+- double-entry campaign escrow ledger, refunds, milestone payouts, and cause transfers,
 - blockchain orchestration,
 - audit logging.
 
@@ -64,7 +65,7 @@ Stores application state:
 - OCR results,
 - flags,
 - verification records,
-- optional external-payment report metadata,
+- donation, provider, refund, disbursement, and escrow-ledger metadata,
 - blockchain transaction references,
 - audit logs.
 
@@ -117,7 +118,7 @@ Responsibilities:
 - timestamp,
 - immutable transaction reference.
 
-Phase 1 uses EIP-712 Verifier signatures and a Solidity quorum contract for 2-of-3 decisions, then anchors a versioned evidence/review commitment. Assigned Verifiers sign with organization-controlled wallets; the backend relays transactions and pays gas in Sepolia ETH. Organizers and Funders do not connect wallets. Payment reports remain off-chain and are not included in the demo proof.
+Phase 1 uses EIP-712 Verifier signatures and a Solidity quorum contract for 2-of-3 decisions, then anchors a versioned evidence/review commitment. Assigned Verifiers sign with organization-controlled wallets; the backend relays transactions and pays gas in Sepolia ETH. An authorized Organizer also signs final campaign terms at H-48; CampaignRegistry anchors the terms commitment, not Rupiah. A payment/escrow provider executes fiat checkout, refunds, and milestone payouts. Development/test simulates provider events without moving funds. A real provider integration must be configured before any live transaction.
 
 ## 3. Architecture Diagram
 

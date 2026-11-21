@@ -18,6 +18,8 @@ import { createCampaignRegistryChain } from "./funding/registry.js";
 import { createProofAnchorChain } from "./proof/anchorChain.js";
 import { createProofService } from "./proof/proofService.js";
 import { createFundingService } from "./funding/fundingService.js";
+import { createFundraisingService } from "./fundraising/fundraisingService.js";
+import { createSimulatedPaymentProvider } from "./fundraising/simulatedPaymentProvider.js";
 import { createObjectStorage } from "./storage/objectStorage.js";
 import { readStorageConfig } from "./storage/config.js";
 import { createReadinessService } from "./runtime/readiness.js";
@@ -29,6 +31,7 @@ import { createFundingRepository } from "./repositories/fundingRepository.js";
 import { createProofRepository } from "./repositories/proofRepository.js";
 import { createReviewRepository } from "./repositories/reviewRepository.js";
 import { createPaymentRepository } from "./repositories/paymentRepository.js";
+import { createFundraisingRepository } from "./fundraising/fundraisingRepository.js";
 import { createWorkflowWorker } from "./workers/workflowWorker.js";
 
 async function startServer() {
@@ -110,6 +113,15 @@ async function startServer() {
         contractAddress: campaignRegistryChain.contractAddress,
       })
       : undefined;
+    const fundraisingRepository = pool ? createFundraisingRepository(pool) : undefined;
+    // Local development uses a clearly labelled fake provider with no real money
+    // movement. Production remains fail-closed until a real provider is selected.
+    const fundraisingPaymentProvider = ["development", "test"].includes(config.nodeEnv)
+      ? createSimulatedPaymentProvider({ webOrigin: config.webOrigin })
+      : null;
+    const fundraisingService = fundraisingRepository
+      ? createFundraisingService({ repository: fundraisingRepository, paymentProvider: fundraisingPaymentProvider })
+      : undefined;
     const evidenceRepository = pool ? createEvidenceRepository(pool, { reviewRepository }) : undefined;
     const ocrRepository = pool ? createOcrRepository(pool, {
       reviewRepository,
@@ -143,7 +155,7 @@ async function startServer() {
       });
     }
     workflowWorker = createWorkflowWorker({
-      reviewRepository, peerReviewService, proofService,
+      reviewRepository, peerReviewService, proofService, fundraisingService,
       onError: ({ stage, code }) => console.error(`Workflow recovery ${stage}: ${code}`),
     });
     const readinessService = createReadinessService({
@@ -156,6 +168,7 @@ async function startServer() {
       authRepository,
       campaignRepository,
       paymentRepository: pool ? createPaymentRepository(pool) : undefined,
+      fundraisingService,
       evidenceRepository,
       reviewRepository,
       peerReviewService,

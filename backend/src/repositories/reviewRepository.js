@@ -552,7 +552,7 @@ export function createReviewRepository(pool, { contractAddress } = {}) {
          FROM evidence e
          JOIN milestones m ON m.id = e.milestone_id
          JOIN campaigns c ON c.id = m.campaign_id
-         JOIN users f ON f.id = c.funder_id
+         LEFT JOIN users f ON f.id = c.funder_id
          WHERE e.id = $1 LIMIT 1`,
         [evidenceId],
       );
@@ -567,14 +567,17 @@ export function createReviewRepository(pool, { contractAddress } = {}) {
         throw repositoryError("REVIEW_ROUND_ALREADY_EXISTS");
       }
 
+      const funderOrganizationFilter = evidenceRow.funder_organization_id ? "AND vw.organization_id <> $2" : "";
       const roster = await client.query(
         `SELECT vw.verifier_user_id, vw.wallet_address, vw.organization_id, vw.roster_version
          FROM verifier_wallets vw
          JOIN users u ON u.id = vw.verifier_user_id
          WHERE vw.status = 'ACTIVE' AND u.role = 'VERIFIER' AND u.status = 'ACTIVE'
-           AND vw.organization_id <> $1 AND vw.organization_id <> $2
+           AND vw.organization_id <> $1 ${funderOrganizationFilter}
          ORDER BY vw.wallet_address`,
-        [evidenceRow.organization_id, evidenceRow.funder_organization_id],
+        evidenceRow.funder_organization_id
+          ? [evidenceRow.organization_id, evidenceRow.funder_organization_id]
+          : [evidenceRow.organization_id],
       );
       const panel = roster.rows;
       const distinctOrganizations = new Set(panel.map((member) => member.organization_id));
@@ -585,7 +588,9 @@ export function createReviewRepository(pool, { contractAddress } = {}) {
       const opaqueReviewId = reviewId();
       const versionCommitment = commitment("evidence-version", `${evidenceRow.id}:${evidenceRow.version}:${evidenceRow.raw_hash}`);
       const organizerOrganizationCommitment = commitment("organization", evidenceRow.organization_id);
-      const funderOrganizationCommitment = commitment("organization", evidenceRow.funder_organization_id);
+      const funderOrganizationCommitment = evidenceRow.funder_organization_id
+        ? commitment("organization", evidenceRow.funder_organization_id)
+        : commitment("fundraising-campaign", evidenceRow.campaign_id);
       const rosterVersion = Number(panel[0].roster_version);
       await client.query(
         `INSERT INTO review_rounds (

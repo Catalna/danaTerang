@@ -1,5 +1,5 @@
 /** Recover durable workflow gaps independently of HTTP requests and OCR timing. */
-export function createWorkflowWorker({ reviewRepository, peerReviewService, proofService, intervalMs = 30_000, onError = () => {} } = {}) {
+export function createWorkflowWorker({ reviewRepository, peerReviewService, proofService, fundraisingService, intervalMs = 30_000, onError = () => {} } = {}) {
   if (!Number.isSafeInteger(intervalMs) || intervalMs < 100) throw new TypeError("Invalid workflow interval");
   const steps = [
     ["create_review_rounds", reviewRepository && (() => reviewRepository.createWaitingRounds())],
@@ -8,6 +8,7 @@ export function createWorkflowWorker({ reviewRepository, peerReviewService, proo
     ["relay_queued_votes", peerReviewService && (() => peerReviewService.relayQueuedVotes())],
     ["create_proofs", proofService && (() => proofService.createMissingProofs())],
     ["reconcile_proofs", proofService && (() => proofService.retryFailedProofs())],
+    ["fundraising_deadlines", fundraisingService && (() => fundraisingService.processDeadlines())],
   ].filter(([, run]) => run);
   let timer = null;
   let running = null;
@@ -28,7 +29,7 @@ export function createWorkflowWorker({ reviewRepository, peerReviewService, proo
         try {
           const items = await run();
           results.push({ stage, results: items });
-          for (const item of items ?? []) {
+          for (const item of Array.isArray(items) ? items : []) {
             if (item.errorCode || item.anchorError) report(stage, item.errorCode ?? item.anchorError);
           }
         } catch (error) {
