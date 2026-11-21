@@ -1,0 +1,29 @@
+{
+  "name": "dana-terang",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "workspaces": [
+    "frontend",
+    "backend",
+    "packages/*"
+  ],
+  "overrides": {
+    "solc@0.8.37": {
+      "tmp": "0.2.7"
+    }
+  },
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "setup:local": "node backend/scripts/local-development.js setup",
+    "dev": "node backend/scripts/local-development.js start",
+    "db:start:local": "node backend/scripts/local-development.js db",
+    "db:stop:local": "node backend/scripts/local-development.js stop",
+    "dev:api": "npm run dev --workspace @dana-terang/api",
+    "dev:web": "npm run dev --workspace @dana-terang/web",
+    "build": "npm run build --workspaces --if-present"
+  }
+}

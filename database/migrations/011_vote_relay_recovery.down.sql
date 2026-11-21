@@ -1,0 +1,5 @@
+DROP INDEX review_vote_submissions_retry_idx;
+ALTER TABLE review_vote_submissions DROP CONSTRAINT vote_relay_lease_pair;
+ALTER TABLE review_vote_submissions DROP COLUMN next_attempt_at;
+ALTER TABLE review_vote_submissions DROP COLUMN relay_lease_expires_at;
+ALTER TABLE review_vote_submissions DROP COLUMN relay_lease_owner;
